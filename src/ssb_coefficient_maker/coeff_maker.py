@@ -28,6 +28,7 @@ from typing import Dict, Union, List, Annotated, Tuple, Any
 from pydantic import validate_call, ConfigDict, Field
 import mpmath
 import warnings
+from __future__ import annotations
 
 class _ResultValidator:
     """Validator for formula evaluation results.
