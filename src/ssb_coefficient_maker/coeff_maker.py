@@ -165,7 +165,7 @@ class _ResultValidator:
             # For other types, return empty mask
             return pd.Series([False])
 
-    def _count_invalid_values(self, result: Union[pd.DataFrame, pd.Series]) -> int:
+    def _count_invalid_values(self, result: Union[pd.DataFrame, pd.Series]) -> int|Any:
         """Count the number of invalid values (NaN and Inf) in the result.
 
         Args:
@@ -207,7 +207,7 @@ class _ResultValidator:
         
         return result
 
-    def _has_invalid_values(self, invalid_mask: Union[pd.DataFrame, pd.Series]) -> bool:
+    def _has_invalid_values(self, invalid_mask: Union[pd.DataFrame, pd.Series]) -> bool | Any:
         """Check if there are any invalid values in the data.
         
         Args:
