@@ -27,11 +27,10 @@
 
 ## Features
 
-- High-precision mathematical formula evaluation for pandas DataFrames and Series
-- Arbitrary decimal precision support using mpmath for accurate financial and statistical calculations
-- Sophisticated validation system for detecting and handling invalid values (NaN, Inf)
-- Coefficient calculation from formula definitions stored in mapping tables
-- Comprehensive error reporting with detailed diagnostics for debugging complex formulas
+- Arbitrary decimal precision support using mpmath for accurate more accurate calculations
+- Validation system for detecting and handling invalid values (NaN, Inf, pd.NA)
+- Coefficient calculation based on formula definitions stored in a dataframe
+- Comprehensive error reporting with detailed diagnostics for debugging formulas
 - Support for mixed operations between DataFrames and Series with proper broadcasting
 - Configurable precision and error handling to suit different use cases
 
