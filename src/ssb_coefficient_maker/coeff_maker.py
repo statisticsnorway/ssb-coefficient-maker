@@ -1,7 +1,4 @@
-"""
-Author: Benedikt Goodman
-
-Formula evaluation and coefficient calculation objects for national accounts.
+"""Formula evaluation and coefficient calculation objects for national accounts.
 
 This module provides classes for evaluating mathematical formulas that operate on pandas
 objects (DataFrames and Series) and for calculating input-output coefficients used in
@@ -19,16 +16,25 @@ The formula evaluation supports basic operations including addition, multiplicat
 and powers, with special handling for pandas alignment issues when performing operations
 between different data types (DataFrame-DataFrame, DataFrame-Series, etc.).
 
+Author: Benedikt Goodman
+Helper: Claude Sonnet 3.7
+
 """
 
-import pandas as pd
-import numpy as np
-import sympy as sp
-from typing import Dict, Union, List, Annotated, Tuple, Any
-from pydantic import validate_call, ConfigDict, Field
-import mpmath
-import warnings
 from __future__ import annotations
+
+import warnings
+from typing import Annotated
+from typing import Any
+
+import mpmath
+import numpy as np
+import pandas as pd
+import sympy as sp
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import validate_call
+
 
 class _ResultValidator:
     """Validator for formula evaluation results.
@@ -42,7 +48,12 @@ class _ResultValidator:
         adp_enabled (bool): Whether arbitrary decimal precision is enabled.
     """
 
-    def __init__(self, fill_invalid: bool = False, verbose: bool = False, adp_enabled: bool = False):
+    def __init__(
+        self,
+        fill_invalid: bool = False,
+        verbose: bool = False,
+        adp_enabled: bool = False,
+    ) -> None:
         """Initialize the result validator.
 
         Args:
@@ -54,8 +65,12 @@ class _ResultValidator:
         self.verbose = verbose
         self.adp_enabled = adp_enabled
 
-    def validate(self, result: Union[pd.DataFrame, pd.Series], formula_str: str, 
-                 data_dict: Dict[str, Union[pd.DataFrame, pd.Series]]) -> Tuple[Union[pd.DataFrame, pd.Series], int]:
+    def validate(
+        self,
+        result: pd.DataFrame | pd.Series,
+        formula_str: str,
+        data_dict: dict[str, pd.DataFrame | pd.Series],
+    ) -> tuple[pd.DataFrame | pd.Series, int]:
         """Validate the result of formula evaluation.
 
         Detects invalid values (NaN and Inf) in computation results and provides
@@ -66,19 +81,14 @@ class _ResultValidator:
             formula_str (str): The formula string used for computation.
             data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to pandas objects.
 
-        Raises:
-            ValueError: If a problematic operation is detected that results
-                in all values being NaN and fill_invalid is False.
-
         Warns:
             UserWarning: If some (but not all) values in the result are invalid,
                 suggesting potential issues with the computation and fill_invalid is False.
 
         Returns:
-            Tuple[Union[pd.DataFrame, pd.Series], int]: A tuple containing the processed result 
+            Tuple[Union[pd.DataFrame, pd.Series], int]: A tuple containing the processed result
                 and the number of invalid values found.
         """
-
         # Check invalid status
         all_invalid, some_invalid, has_nan, has_inf = self._check_invalid_status(result)
 
@@ -126,11 +136,13 @@ class _ResultValidator:
                     has_inf,
                     invalid_count,
                 )
-                warnings.warn(warning_msg, UserWarning)
+                warnings.warn(warning_msg, UserWarning, stacklevel=0)
 
         return result, invalid_count
 
-    def _get_invalid_mask(self, result: Union[pd.DataFrame, pd.Series]) -> Union[pd.DataFrame, pd.Series, pd.Series]:
+    def _get_invalid_mask(
+        self, result: pd.DataFrame | pd.Series
+    ) -> pd.DataFrame | pd.Series | pd.Series:
         """Create a mask identifying where all invalid values (NaN and Inf) are in result.
 
         Args:
@@ -166,7 +178,7 @@ class _ResultValidator:
             # For other types, return empty mask
             return pd.Series([False])
 
-    def _count_invalid_values(self, result: Union[pd.DataFrame, pd.Series]) -> int|Any:
+    def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int | Any:
         """Count the number of invalid values (NaN and Inf) in the result.
 
         Args:
@@ -184,7 +196,9 @@ class _ResultValidator:
         else:
             return 0
 
-    def _fill_invalid_values(self, result: Union[pd.DataFrame, pd.Series]) -> Union[pd.DataFrame, pd.Series]:
+    def _fill_invalid_values(
+        self, result: pd.DataFrame | pd.Series
+    ) -> pd.DataFrame | pd.Series:
         """Replace Inf and NaN values with zeros.
 
         Args:
@@ -195,25 +209,25 @@ class _ResultValidator:
         """
         # Get mask of invalid values
         invalid_mask = self._get_invalid_mask(result)
-        
+
         # Check if we have any invalid values
         if not self._has_invalid_values(invalid_mask):
             return result
-            
+
         # Handle replacement based on type and ADP setting
         if isinstance(result, pd.DataFrame):
             return self._fill_invalid_dataframe(result, invalid_mask)
         elif isinstance(result, pd.Series):
             return self._fill_invalid_series(result, invalid_mask)
-        
+
         return result
 
-    def _has_invalid_values(self, invalid_mask: Union[pd.DataFrame, pd.Series]) -> bool | Any:
+    def _has_invalid_values(self, invalid_mask: pd.DataFrame | pd.Series) -> bool | Any:
         """Check if there are any invalid values in the data.
-        
+
         Args:
             invalid_mask (Union[pd.DataFrame, pd.Series]): Mask of invalid values.
-            
+
         Returns:
             bool: True if there are any invalid values, False otherwise.
         """
@@ -223,13 +237,15 @@ class _ResultValidator:
             return invalid_mask.any()
         return False
 
-    def _fill_invalid_dataframe(self, df: pd.DataFrame, invalid_mask: pd.DataFrame) -> pd.DataFrame:
+    def _fill_invalid_dataframe(
+        self, df: pd.DataFrame, invalid_mask: pd.DataFrame
+    ) -> pd.DataFrame:
         """Replace invalid values in a DataFrame with zeros.
-        
+
         Args:
             df (pd.DataFrame): DataFrame with potential invalid values.
             invalid_mask (pd.DataFrame): Boolean mask of invalid values.
-            
+
         Returns:
             pd.DataFrame: DataFrame with invalid values replaced by zeros.
         """
@@ -237,13 +253,15 @@ class _ResultValidator:
             return self._fill_invalid_dataframe_adp(df, invalid_mask)
         return df.replace([np.inf, -np.inf, np.nan], 0)
 
-    def _fill_invalid_dataframe_adp(self, df: pd.DataFrame, invalid_mask: pd.DataFrame) -> pd.DataFrame:
+    def _fill_invalid_dataframe_adp(
+        self, df: pd.DataFrame, invalid_mask: pd.DataFrame
+    ) -> pd.DataFrame:
         """Replace invalid values in a DataFrame with zeros using ADP precision.
-        
+
         Args:
             df (pd.DataFrame): DataFrame with potential invalid values.
             invalid_mask (pd.DataFrame): Boolean mask of invalid values.
-            
+
         Returns:
             pd.DataFrame: DataFrame with invalid values replaced by zeros using mpmath.
         """
@@ -254,13 +272,15 @@ class _ResultValidator:
                     result_copy.loc[idx, col] = mpmath.mpf("0")
         return result_copy
 
-    def _fill_invalid_series(self, series: pd.Series, invalid_mask: pd.Series) -> pd.Series:
+    def _fill_invalid_series(
+        self, series: pd.Series, invalid_mask: pd.Series
+    ) -> pd.Series:
         """Replace invalid values in a Series with zeros.
-        
+
         Args:
             series (pd.Series): Series with potential invalid values.
             invalid_mask (pd.Series): Boolean mask of invalid values.
-            
+
         Returns:
             pd.Series: Series with invalid values replaced by zeros.
         """
@@ -268,13 +288,15 @@ class _ResultValidator:
             return self._fill_invalid_series_adp(series, invalid_mask)
         return series.replace([np.inf, -np.inf, np.nan, pd.NA], 0)
 
-    def _fill_invalid_series_adp(self, series: pd.Series, invalid_mask: pd.Series) -> pd.Series:
+    def _fill_invalid_series_adp(
+        self, series: pd.Series, invalid_mask: pd.Series
+    ) -> pd.Series:
         """Replace invalid values in a Series with zeros using ADP precision.
-        
+
         Args:
             series (pd.Series): Series with potential invalid values.
             invalid_mask (pd.Series): Boolean mask of invalid values.
-            
+
         Returns:
             pd.Series: Series with invalid values replaced by zeros using mpmath.
         """
@@ -284,7 +306,9 @@ class _ResultValidator:
                 result_copy.loc[idx] = mpmath.mpf("0")
         return result_copy
 
-    def _check_invalid_status(self, result: Union[pd.DataFrame, pd.Series]) -> Tuple[bool, bool, bool, bool]:
+    def _check_invalid_status(
+        self, result: pd.DataFrame | pd.Series
+    ) -> tuple[bool, bool, bool, bool]:
         """Check the status of invalid values in the result.
 
         Determines whether the result contains all invalid values, some invalid values,
@@ -341,8 +365,14 @@ class _ResultValidator:
 
         return all_invalid, some_invalid, has_nan, has_inf
 
-    def _log_invalid_details(self, result: Union[pd.DataFrame, pd.Series], all_invalid: bool, 
-                             some_invalid: bool, has_nan: bool, has_inf: bool) -> None:
+    def _log_invalid_details(
+        self,
+        result: pd.DataFrame | pd.Series,
+        all_invalid: bool,
+        some_invalid: bool,
+        has_nan: bool,
+        has_inf: bool,
+    ) -> None:
         """Log details about invalid values if verbose mode is enabled.
 
         Args:
@@ -375,8 +405,9 @@ class _ResultValidator:
         if self.fill_invalid and (all_invalid or some_invalid):
             print("Invalid values will be replaced with zeros")
 
-    def _parse_formula(self, formula_str: str, 
-                      data_dict: Dict[str, Union[pd.DataFrame, pd.Series]]) -> sp.Expr:
+    def _parse_formula(
+        self, formula_str: str, data_dict: dict[str, pd.DataFrame | pd.Series]
+    ) -> sp.Expr:
         """Parse a formula string into a sympy expression.
 
         Args:
@@ -386,14 +417,13 @@ class _ResultValidator:
         Returns:
             sp.Expr: Parsed sympy expression.
         """
-
         # Create local dictionary of symbols for sympy
         symbols = {name: sp.Symbol(name) for name in data_dict.keys()}
 
         # Parse the formula
         return sp.sympify(formula_str, locals=symbols)
 
-    def _extract_variables(self, expr: sp.Expr) -> List[str]:
+    def _extract_variables(self, expr: sp.Expr) -> list[str]:
         """Extract variable names from a sympy expression.
 
         Args:
@@ -404,8 +434,9 @@ class _ResultValidator:
         """
         return [str(symbol) for symbol in expr.free_symbols]
 
-    def _check_variable_mixture(self, formula_str: str, 
-                               data_dict: Dict[str, Union[pd.DataFrame, pd.Series]]) -> Tuple[List[str], List[str], List[str], bool]:
+    def _check_variable_mixture(
+        self, formula_str: str, data_dict: dict[str, pd.DataFrame | pd.Series]
+    ) -> tuple[list[str], list[str], list[str], bool]:
         """Check if the formula mixes Series and DataFrame variables.
 
         Args:
@@ -413,7 +444,7 @@ class _ResultValidator:
             data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to pandas objects.
 
         Returns:
-            Tuple[List[str], List[str], List[str], bool]: Tuple containing 
+            Tuple[List[str], List[str], List[str], bool]: Tuple containing
                 (variables, series_vars, df_vars, mixture_issue)
         """
         import pandas as pd
@@ -433,8 +464,12 @@ class _ResultValidator:
         return variables, series_vars, df_vars, mixture_issue
 
     def _handle_all_invalid(
-        self, formula_str: str, variables: List[str], series_vars: List[str], 
-        df_vars: List[str], mixture_issue: bool
+        self,
+        formula_str: str,
+        variables: list[str],
+        series_vars: list[str],
+        df_vars: list[str],
+        mixture_issue: bool,
     ) -> None:
         """Handle the case where all values in the result are invalid.
 
@@ -466,10 +501,10 @@ class _ResultValidator:
     def _create_warning_message(
         self,
         formula_str: str,
-        result: Union[pd.DataFrame, pd.Series],
-        variables: List[str],
-        series_vars: List[str],
-        df_vars: List[str],
+        result: pd.DataFrame | pd.Series,
+        variables: list[str],
+        series_vars: list[str],
+        df_vars: list[str],
         mixture_issue: bool,
         has_nan: bool,
         has_inf: bool,
@@ -491,7 +526,6 @@ class _ResultValidator:
         Returns:
             str: The formatted warning message.
         """
-
         # Calculate the percentage of invalid values
         if isinstance(result, pd.DataFrame):
             total_cells = result.size
@@ -547,16 +581,16 @@ class FormulaEvaluator:
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data_dict: Dict[str, Union[pd.DataFrame, pd.Series]],
+        data_dict: dict[str, pd.DataFrame | pd.Series],
         adp_enabled: bool = True,
         decimal_precision: Annotated[int, Field(gt=0)] = 35,
         fill_invalid: bool = False,
         verbose: bool = False,
-    ):
+    ) -> None:
         """Initialize the FormulaEvaluator with data and precision settings.
 
         Args:
-            data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable names 
+            data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable names
                 to pandas objects (DataFrames or Series).
             adp_enabled (bool): Whether to enable arbitrary decimal precision
                 using mpmath. If True, all numeric values will be converted to mpmath.mpf.
@@ -575,7 +609,9 @@ class FormulaEvaluator:
         self.fill_invalid = fill_invalid
         self.verbose = verbose
         # Set up the validator - defaults to ResultValidator
-        self.validator = _ResultValidator(fill_invalid=fill_invalid, verbose=verbose, adp_enabled=adp_enabled)
+        self.validator = _ResultValidator(
+            fill_invalid=fill_invalid, verbose=verbose, adp_enabled=adp_enabled
+        )
 
         # If arbitrary precision is enabled, use mpf
         if adp_enabled:
@@ -600,8 +636,8 @@ class FormulaEvaluator:
 
     @staticmethod
     def _cast_dtypes_to_mpfloat(
-        data_dict: Dict[str, Union[pd.DataFrame, pd.Series]], decimal_precision: int
-    ) -> Dict[str, Union[pd.DataFrame, pd.Series]]:
+        data_dict: dict[str, pd.DataFrame | pd.Series], decimal_precision: int
+    ) -> dict[str, pd.DataFrame | pd.Series]:
         """Convert all numeric data to mpmath float types with specified precision.
 
         Args:
@@ -636,9 +672,6 @@ class FormulaEvaluator:
         Returns:
             sp.Expr: Parsed sympy expression that can be analyzed or evaluated.
 
-        Raises:
-            SympifyError: If the formula cannot be parsed into a valid sympy expression.
-
         """
         if self.verbose:
             print(f"Parsing formula: {formula}")
@@ -654,7 +687,7 @@ class FormulaEvaluator:
 
         return parsed
 
-    def extract_variables(self, expr: sp.Expr) -> List[str]:
+    def extract_variables(self, expr: sp.Expr) -> list[str]:
         """Extract variable names from a sympy expression.
 
         Identifies all variables used in the expression that should be present
@@ -674,7 +707,7 @@ class FormulaEvaluator:
 
         return variables
 
-    def _perform_evaluation(self, formula_str: str) -> Union[pd.DataFrame, pd.Series]:
+    def _perform_evaluation(self, formula_str: str) -> pd.DataFrame | pd.Series:
         """Perform the actual formula evaluation.
 
         Args:
@@ -684,29 +717,36 @@ class FormulaEvaluator:
             Union[pd.DataFrame, pd.Series]: The result of evaluating the formula.
 
         Raises:
-            Various exceptions depending on evaluation issues.
+            ValueError: If power operations ('**') are found in the formula when arbitrary
+                precision is enabled, which is not supported by pandas eval.
+            KeyError: If the formula references a variable not present in the data dictionary.
+            SyntaxError: If the formula contains invalid syntax for pandas eval.
+            TypeError: If an operation in the formula is not supported between the given types.
         """
-        if self.adp_enabled:
-            try:
-                return pd.eval(formula_str, local_dict=self.data_dict)
-            except Exception as e:
-                if "**" in formula_str and isinstance(e, TypeError):
-                    raise ValueError(
-                        f"Power operation '**' found in formula '{formula_str}'. "
-                        "Pandas eval doesn't support power operations between DataFrames and scalars. "
-                        "Consider using DataFrame.pow() method instead or pre-compute this operation."
-                    )
-                else:
-                    # Raise the same exception type but with a more informative message
-                    exception_type = type(e)
-                    raise exception_type(
-                        f"Error evaluating formula '{formula_str}': {str(e)}"
-                    )
-        else:
+        # Check for power operations in ADP mode
+        if self.adp_enabled and "**" in formula_str:
+            raise ValueError(
+                f"Power operation '**' found in formula '{formula_str}'. "
+                "Pandas eval doesn't support power operations between DataFrames and scalars. "
+                "Consider using DataFrame.pow() method instead or pre-compute this operation."
+            )
+
+        try:
             # Evaluates formula expression and calculates result
             return pd.eval(formula_str, local_dict=self.data_dict)
+        except KeyError as e:
+            # Variable not found in data dictionary
+            raise KeyError(
+                f"Variable '{e.args[0]}' not found in data dictionary"
+            ) from e
+        except SyntaxError as e:
+            # Invalid syntax in formula
+            raise SyntaxError(f"Invalid syntax in formula '{formula_str}': {e}") from e
+        except TypeError as e:
+            # Type error in operation
+            raise TypeError(f"Type error in formula '{formula_str}': {e}") from e
 
-    def evaluate_formula(self, formula_str: str) -> Union[pd.DataFrame, pd.Series]:
+    def evaluate_formula(self, formula_str: str) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
 
         Computes the result of the formula using pandas eval() with the
@@ -717,13 +757,6 @@ class FormulaEvaluator:
 
         Returns:
             Union[pd.DataFrame, pd.Series]: Result of the evaluation.
-
-        Raises:
-            ValueError: If power operations are used in arbitrary precision mode
-                or if there are issues with Series-DataFrame operations.
-            TypeError: If the operation is not supported between the given types.
-            Exception: Other errors that might occur during evaluation are
-                re-raised with more informative messages.
         """
         if self.verbose:
             print(f"Evaluating formula: {formula_str}")
@@ -755,21 +788,25 @@ class FormulaEvaluator:
 
         return result
 
-class CoefficientCalculator:
-    """Calculator for generating coefficient matrices from formulas.
 
-    This class leverages the FormulaEvaluator utility to compute coefficient
-    matrices based on formulas defined in a mapping table. It processes each
-    formula and handles errors gracefully.
+class CoefficientCalculator:
+    """Class for calculating coefficients based on formulas and input data.
+
+    This class evaluates a set of coefficient formulas using data from pandas objects
+    and produces a dictionary of calculated coefficients. It leverages the FormulaEvaluator
+    for parsing and evaluating mathematical expressions, supporting arbitrary decimal
+    precision for high-precision numerical operations.
 
     Attributes:
-        data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of input
-            matrices and vectors.
-        coefficient_map (pd.DataFrame): DataFrame with coefficient definitions including
-            'navn' (name) and 'formel' (formula) columns.
-        evaluator (FormulaEvaluator): Utility for evaluating mathematical expressions.
+        data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable
+            names to pandas objects used in formula evaluation.
+        coefficient_map (pd.DataFrame): DataFrame containing coefficient names and formulas,
+            with columns 'navn' (name) and 'formel' (formula).
+        fill_invalid (bool): Whether to replace Inf and NaN values with zeros after computation.
+        adp_enabled (bool): Whether arbitrary decimal precision is enabled.
+        evaluator (FormulaEvaluator): Formula evaluator instance used for parsing and computing.
     """
-    
+
     def __init__(
         self,
         data_dict: dict[str, pd.DataFrame | pd.Series],
@@ -778,22 +815,33 @@ class CoefficientCalculator:
         decimal_precision: Annotated[int, Field(gt=0)] = 35,
         fill_invalid: bool = False,
         verbose: bool = False,
-    ):
-        """Initialize the calculator with input data and coefficient mapping.
+    ) -> None:
+        """Initialize the FormulaEvaluator with data and precision settings.
 
         Args:
-            data_dict: Dictionary mapping variable names to pandas objects
-                (DataFrames or Series) that will be used in formula evaluation.
-            coefficient_map: DataFrame with coefficient definitions including
+        data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable names
+            to pandas objects (DataFrames or Series).
+        coefficient_map: DataFrame with coefficient definitions including
                 'navn' (name) and 'formel' (formula) columns. Each row defines
                 a coefficient to compute.
+        adp_enabled (bool): Whether to enable arbitrary decimal precision
+            using mpmath. If True, all numeric values will be converted to mpmath.mpf.
+            Defaults to True.
+        decimal_precision (int): Number of decimal digits for precision when arbitrary precision
+            is enabled. Must be positive. Defaults to 35 (roughly equivalent to 128-bit).
+        fill_invalid (bool): Whether to replace Inf and NaN values with zeros in the computation
+            results. Useful when handling division by zero in diagonal matrices. Defaults to False.
+        verbose (bool): Whether to print verbose information during evaluation. Defaults to False.
+
+        Raises:
+        AttributeError: If adp_enabled is True but decimal_precision is not a positive integer.
+
         """
         self.data_dict = data_dict
         self.coefficient_map = coefficient_map
-       
+
         self.fill_invalid = fill_invalid
-        self.adp_enabled =  adp_enabled
-        
+        self.adp_enabled = adp_enabled
 
         self.evaluator = FormulaEvaluator(
             data_dict,
@@ -803,7 +851,7 @@ class CoefficientCalculator:
             verbose=verbose,
         )
 
-    def compute_coefficients(self) -> Dict[str, Any]:
+    def compute_coefficients(self) -> dict[str, Any]:
         """Compute coefficient matrices based on formulas in the coefficient map.
 
         Processes each row in the coefficient_map, evaluating the formula and
@@ -828,7 +876,7 @@ class CoefficientCalculator:
             if pd.isna(formula) or formula.strip() == "":
                 print(f"Skipping coefficient {name}: No formula provided")
                 continue
-            
+
             # Parse the formula into a sympy expression
             expr = self.evaluator.parse_formula(formula)
 
@@ -837,9 +885,7 @@ class CoefficientCalculator:
             missing_vars = [var for var in variables if var not in self.data_dict]
 
             if missing_vars:
-                print(
-                    f"Skipping coefficient {name}: Missing variables {missing_vars}"
-                )
+                print(f"Skipping coefficient {name}: Missing variables {missing_vars}")
                 continue
 
             # Evaluate the expression

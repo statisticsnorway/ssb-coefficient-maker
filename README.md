@@ -37,13 +37,13 @@
 
 ## Requirements
 
-- python = >=3.10
-- click = >=8.0.1
-- pandas = >=2.2.3
-- numpy = >=2.2.3
-- sympy = >=1.13.3
-- mpmath = >=1.3.0
-- pydantic = >=2.10.6
+- python >=3.10
+- click >=8.0.1
+- pandas >=2.2.3
+- numpy >=2.2.3
+- sympy >=1.13.3
+- mpmath >=1.3.0
+- pydantic >=2.10.6
 
 ## Installation
 
