@@ -228,11 +228,11 @@ class _ResultValidator:
         
         return result
 
-    def _has_invalid_values(self, invalid_mask: Union[pd.DataFrame, pd.Series, Any]) -> bool:
+    def _has_invalid_values(self, invalid_mask: Union[pd.DataFrame, pd.Series]) -> bool:
         """Check if there are any invalid values in the data.
         
         Args:
-            invalid_mask (Union[pd.DataFrame, pd.Series, Any]): Mask of invalid values.
+            invalid_mask (Union[pd.DataFrame, pd.Series]): Mask of invalid values.
             
         Returns:
             bool: True if there are any invalid values, False otherwise.
