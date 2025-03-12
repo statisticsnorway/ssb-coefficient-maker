@@ -19,27 +19,6 @@ The formula evaluation supports basic operations including addition, multiplicat
 and powers, with special handling for pandas alignment issues when performing operations
 between different data types (DataFrame-DataFrame, DataFrame-Series, etc.).
 
-Examples
---------
->>> # Create sample data for national accounts matrices
->>> data_dict = {
-...     "wspluss": pd.DataFrame(...),  # Production matrix
-...     "xsvek": pd.Series(...),      # Output vector
-...     "xzmat": pd.DataFrame(...),   # Government production matrix
-...     "xzvek": pd.Series(...)       # Government output vector
-... }
->>>
->>> # Define coefficient formulas
->>> coeff_map = pd.DataFrame({
-...     'navn': ['lkxij', 'lkxzij'],
-...     'beskrivelse': ['Output coefficient', 'Government output coefficient'],
-...     'dimensjoner': ['i ∈ va  j ∈ ps', 'i ∈ vag  j ∈ po'],
-...     'formel': ['wspluss/xsvek', 'xzmat/xzvek']
-... })
->>>
->>> # Calculate coefficients
->>> calculator = CoefficientCalculator(data_dict, coeff_map)
->>> coefficients = calculator.compute_coefficients()
 """
 
 import pandas as pd
@@ -562,11 +541,6 @@ class FormulaEvaluator:
         verbose (bool): Whether to print verbose information during evaluation.
         validator (ResultValidator): Validates and potentially transforms results.
 
-    Examples:
-        >>> import pandas as pd
-        >>> data = {'df1': pd.DataFrame([[1, 2], [3, 4]]), 'ser1': pd.Series([5, 6])}
-        >>> evaluator = FormulaEvaluator(data)
-        >>> result = evaluator.evaluate_formula('df1 * ser1')
     """
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
@@ -595,18 +569,6 @@ class FormulaEvaluator:
         Raises:
             AttributeError: If adp_enabled is True but decimal_precision is not a positive integer.
 
-        Examples:
-            >>> import pandas as pd
-            >>> # Standard initialization with default precision
-            >>> data = {'matrix': pd.DataFrame([[1.1, 2.2], [3.3, 4.4]]),
-            ...         'vector': pd.Series([5.5, 6.6])}
-            >>> evaluator = FormulaEvaluator(data)
-            >>>
-            >>> # Initialization with post-processing for invalid values
-            >>> evaluator_safe = FormulaEvaluator(
-            ...     data,
-            ...     fill_invalid=True
-            ... )
         """
         self.adp_enabled = adp_enabled
         self.fill_invalid = fill_invalid
@@ -676,13 +638,6 @@ class FormulaEvaluator:
         Raises:
             SympifyError: If the formula cannot be parsed into a valid sympy expression.
 
-        Examples:
-            >>> import pandas as pd
-            >>> data = {'x': pd.Series([1, 2, 3]), 'y': pd.Series([4, 5, 6])}
-            >>> evaluator = FormulaEvaluator(data)
-            >>> expr = evaluator.parse_formula('x + 2*y')
-            >>> print(expr)
-            x + 2*y
         """
         if self.verbose:
             print(f"Parsing formula: {formula}")
@@ -710,20 +665,6 @@ class FormulaEvaluator:
         Returns:
             List[str]: List of variable names used in the expression.
 
-        Examples:
-            >>> import pandas as pd
-            >>> import sympy as sp
-            >>> data = {'a': pd.Series([1, 2]), 'b': pd.Series([3, 4]), 'c': pd.Series([5, 6])}
-            >>> evaluator = FormulaEvaluator(data)
-            >>> expr = evaluator.parse_formula('a + b * c')
-            >>> variables = evaluator.extract_variables(expr)
-            >>> print(variables)
-            ['a', 'b', 'c']
-
-            >>> expr2 = evaluator.parse_formula('a + 5')
-            >>> variables2 = evaluator.extract_variables(expr2)
-            >>> print(variables2)
-            ['a']
         """
         variables = [str(symbol) for symbol in expr.free_symbols]
 
@@ -782,27 +723,6 @@ class FormulaEvaluator:
             TypeError: If the operation is not supported between the given types.
             Exception: Other errors that might occur during evaluation are
                 re-raised with more informative messages.
-
-        Examples:
-            >>> import pandas as pd
-            >>> import numpy as np
-            >>> # Basic arithmetic operations
-            >>> data = {'df1': pd.DataFrame({'A': [1, 2], 'B': [3, 4]}),
-            ...         'df2': pd.DataFrame({'A': [5, 6], 'B': [7, 8]})}
-            >>> evaluator = FormulaEvaluator(data)
-            >>> result = evaluator.evaluate_formula('df1 + df2')
-            >>> print(result)
-               A   B
-            0  6  10
-            1  8  12
-
-            >>> # Operations with diagonal matrix division (using fill_invalid)
-            >>> data = {'matrix': pd.DataFrame({'A': [1, 2], 'B': [3, 0]}),
-            ...         'diag': pd.DataFrame({'A': [2, 0], 'B': [0, 3]})}
-            >>> evaluator = FormulaEvaluator(data, fill_invalid=True)
-            >>> # Division that would normally produce Inf values
-            >>> result = evaluator.evaluate_formula('matrix / diag')
-            >>> print(result)  # Zeros will be in place of Inf/NaN values
         """
         if self.verbose:
             print(f"Evaluating formula: {formula_str}")
@@ -847,16 +767,6 @@ class CoefficientCalculator:
         coefficient_map (pd.DataFrame): DataFrame with coefficient definitions including
             'navn' (name) and 'formel' (formula) columns.
         evaluator (FormulaEvaluator): Utility for evaluating mathematical expressions.
-
-    Examples:
-        >>> import pandas as pd
-        >>> data = {'matrix1': pd.DataFrame([[1, 2], [3, 4]]), 'vector1': pd.Series([5, 6])}
-        >>> coef_map = pd.DataFrame({
-        ...     'navn': ['coef1', 'coef2'],
-        ...     'formel': ['matrix1 * 2', 'matrix1 * vector1']
-        ... })
-        >>> calculator = CoefficientCalculator(data, coef_map)
-        >>> results = calculator.compute_coefficients()
     """
     
     def __init__(
@@ -876,24 +786,6 @@ class CoefficientCalculator:
             coefficient_map: DataFrame with coefficient definitions including
                 'navn' (name) and 'formel' (formula) columns. Each row defines
                 a coefficient to compute.
-
-        Examples:
-            >>> import pandas as pd
-            >>> # Create input data
-            >>> data = {
-            ...     'A': pd.DataFrame({'x': [1, 2], 'y': [3, 4]}),
-            ...     'B': pd.Series([10, 20]),
-            ...     'scalar': pd.Series([5])
-            ... }
-            >>>
-            >>> # Create coefficient mapping
-            >>> coef_map = pd.DataFrame({
-            ...     'navn': ['C1', 'C2', 'C3'],
-            ...     'formel': ['A * B', 'A + scalar', 'B / scalar']
-            ... })
-            >>>
-            >>> # Initialize the calculator
-            >>> calculator = CoefficientCalculator(data, coef_map)
         """
         self.data_dict = data_dict
         self.coefficient_map = coefficient_map
@@ -925,38 +817,6 @@ class CoefficientCalculator:
             This method logs information about skipped coefficients and errors
             using print statements. For production use, consider implementing
             proper logging.
-
-        Examples:
-            >>> import pandas as pd
-            >>> # Create test data
-            >>> data = {
-            ...     'matrix1': pd.DataFrame({'a': [1, 2], 'b': [3, 4]}),
-            ...     'matrix2': pd.DataFrame({'a': [5, 6], 'b': [7, 8]}),
-            ...     'vector': pd.Series([10, 20])
-            ... }
-            >>>
-            >>> # Define coefficient mapping
-            >>> coef_map = pd.DataFrame({
-            ...     'navn': ['sum_matrix', 'scaled_matrix', 'invalid_coef', 'missing_var'],
-            ...     'formel': ['matrix1 + matrix2', 'matrix1 * vector', '', 'matrix3 * 2']
-            ... })
-            >>>
-            >>> # Initialize and compute
-            >>> calculator = CoefficientCalculator(data, coef_map)
-            >>> results = calculator.compute_coefficients()
-            >>>
-            >>> # Inspect results
-            >>> print(results['sum_matrix'])
-            >>>   a   b
-            >>> 0  6  10
-            >>> 1  8  12
-            >>>
-            >>> print(results['scaled_matrix'])
-            >>>     a    b
-            >>> 0  10   30
-            >>> 1  40   80
-            >>>
-            >>> # Note: 'invalid_coef' and 'missing_var' will be skipped with log messages
         """
         result = {}
 
