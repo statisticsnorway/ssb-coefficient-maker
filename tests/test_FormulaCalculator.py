@@ -12,7 +12,7 @@ from ssb_coefficient_maker.coeff_maker import CoefficientCalculator
 SEED = 42
 
 
-def create_test_data():
+def create_test_data() -> dict[str, pd.DataFrame]:
     """Create test data for coefficient calculator tests."""
     rng = np.random.default_rng(seed=SEED)
     
@@ -51,7 +51,7 @@ def create_test_data():
     return data_dict
 
 
-def create_coefficient_map():
+def create_coefficient_map() -> pd.DataFrame:
     """Create a coefficient map for testing."""
     return pd.DataFrame({
         'navn': [
@@ -76,7 +76,7 @@ def create_coefficient_map():
 
 
 @pytest.fixture
-def coefficient_calculator():
+def coefficient_calculator() -> tuple(CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame):
     """Pytest fixture for CoefficientCalculator with test data."""
     data_dict = create_test_data()
     coef_map = create_coefficient_map()
@@ -84,7 +84,7 @@ def coefficient_calculator():
     return calculator, data_dict, coef_map
 
 
-def test_compute_coefficients(coefficient_calculator):
+def test_compute_coefficients(coefficient_calculator: tuple):
     """Test that coefficients are computed correctly."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -109,7 +109,7 @@ def test_compute_coefficients(coefficient_calculator):
         f"Expected {len(expected_coefficients)} coefficients, got {len(computed_coefficients)}"
 
 
-def test_skipped_coefficients(coefficient_calculator):
+def test_skipped_coefficients(coefficient_calculator: tuple):
     """Test that invalid coefficients are skipped."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -127,7 +127,7 @@ def test_skipped_coefficients(coefficient_calculator):
         assert coef_name not in computed_coefficients, f"{coef_name} was computed but should be skipped"
 
 
-def test_coefficient_simple_addition(coefficient_calculator):
+def test_coefficient_simple_addition(coefficient_calculator: tuple):
     """Test simple addition coefficient."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -151,7 +151,7 @@ def test_coefficient_simple_addition(coefficient_calculator):
     )
 
 
-def test_coefficient_complex_operations(coefficient_calculator):
+def test_coefficient_complex_operations(coefficient_calculator: tuple):
     """Test complex nested operations coefficient."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -181,7 +181,7 @@ def test_coefficient_complex_operations(coefficient_calculator):
     )
 
 
-def test_coefficient_nan_handling(coefficient_calculator):
+def test_coefficient_nan_handling(coefficient_calculator: tuple):
     """Test NaN handling in coefficients."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -209,7 +209,7 @@ def test_coefficient_nan_handling(coefficient_calculator):
     )
 
 
-def test_coefficient_division_by_diagonal(coefficient_calculator):
+def test_coefficient_division_by_diagonal(coefficient_calculator: tuple):
     """Test division by diagonal matrix coefficient."""
     calculator, data_dict, coef_map = coefficient_calculator
     
@@ -237,7 +237,7 @@ def test_coefficient_division_by_diagonal(coefficient_calculator):
     )
 
 
-def test_coefficient_division_by_sparse(coefficient_calculator):
+def test_coefficient_division_by_sparse(coefficient_calculator: tuple):
     """Test division by sparse matrix coefficient."""
     calculator, data_dict, coef_map = coefficient_calculator
     
