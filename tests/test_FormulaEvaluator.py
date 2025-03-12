@@ -52,14 +52,14 @@ def create_test_data() -> dict[str, pd.DataFrame]:
 
 
 @pytest.fixture
-def formula_evaluator() -> tuple(FormulaEvaluator, dict[str, pd.DataFrame]):
+def formula_evaluator() -> tuple[FormulaEvaluator, dict[str, pd.DataFrame]]:
     """Pytest fixture for the FormulaEvaluator with test data."""
     data_dict = create_test_data()
     evaluator = FormulaEvaluator(data_dict, adp_enabled=False, verbose=True, fill_invalid=True)
     return evaluator, data_dict
 
 
-def test_simple_division_subtraction(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_simple_division_subtraction(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test simple division with subtraction."""
     evaluator, data_dict = formula_evaluator
     a, b, c = data_dict["a"], data_dict["b"], data_dict["c"]
@@ -78,7 +78,7 @@ def test_simple_division_subtraction(formula_evaluator: tuple(FormulaEvaluator, 
     )
 
 
-def test_complex_nested_division(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_complex_nested_division(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test complex nested division."""
     evaluator, data_dict = formula_evaluator
     a, b, c, d = data_dict["a"], data_dict["b"], data_dict["c"], data_dict["d"]
@@ -97,7 +97,7 @@ def test_complex_nested_division(formula_evaluator: tuple(FormulaEvaluator, dict
     )
 
 
-def test_exponentiation_multiplication(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_exponentiation_multiplication(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test exponentiation with multiplication."""
     evaluator, data_dict = formula_evaluator
     a, c = data_dict["a"], data_dict["c"]
@@ -116,7 +116,7 @@ def test_exponentiation_multiplication(formula_evaluator: tuple(FormulaEvaluator
     )
 
 
-def test_exponentiation_subtraction(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_exponentiation_subtraction(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test exponentiation with subtraction."""
     evaluator, data_dict = formula_evaluator
     a, b, c = data_dict["a"], data_dict["b"], data_dict["c"]
@@ -135,7 +135,7 @@ def test_exponentiation_subtraction(formula_evaluator: tuple(FormulaEvaluator, d
     )
 
 
-def test_zero_division(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_zero_division(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test division with potential zeros."""
     evaluator, data_dict = formula_evaluator
     a, e = data_dict["a"], data_dict["e"]
@@ -154,7 +154,7 @@ def test_zero_division(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.D
     )
 
 
-def test_add_dataframes(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_add_dataframes(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test adding two dataframes."""
     evaluator, data_dict = formula_evaluator
     a, f = data_dict["a"], data_dict["f"]
@@ -170,7 +170,7 @@ def test_add_dataframes(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.
     )
 
 
-def test_division_by_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_division_by_diagonal_matrix(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test division by diagonal matrix."""
     evaluator, data_dict = formula_evaluator
     a, g = data_dict["a"], data_dict["g"]
@@ -189,7 +189,7 @@ def test_division_by_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, 
     )
 
 
-def test_division_by_near_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_division_by_near_diagonal_matrix(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test division by near-diagonal matrix."""
     evaluator, data_dict = formula_evaluator
     b, h = data_dict["b"], data_dict["h"]
@@ -208,7 +208,7 @@ def test_division_by_near_diagonal_matrix(formula_evaluator: tuple(FormulaEvalua
     )
 
 
-def test_matrix_with_nan_values(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_matrix_with_nan_values(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test matrix with NaN values in computation."""
     evaluator, data_dict = formula_evaluator
     a, i = data_dict["a"], data_dict["i"]
@@ -227,7 +227,7 @@ def test_matrix_with_nan_values(formula_evaluator: tuple(FormulaEvaluator, dict[
     )
 
 
-def test_division_by_sparse_matrix(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_division_by_sparse_matrix(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test division by sparse matrix (potential zeros)."""
     evaluator, data_dict = formula_evaluator
     c, j = data_dict["c"], data_dict["j"]
@@ -246,7 +246,7 @@ def test_division_by_sparse_matrix(formula_evaluator: tuple(FormulaEvaluator, di
     )
 
 
-def test_complex_operation_with_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_complex_operation_with_diagonal_matrix(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test complex operation with diagonal matrix."""
     evaluator, data_dict = formula_evaluator
     a, g, h, j = data_dict["a"], data_dict["g"], data_dict["h"], data_dict["j"]
@@ -265,7 +265,7 @@ def test_complex_operation_with_diagonal_matrix(formula_evaluator: tuple(Formula
     )
 
 
-def test_inverting_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_inverting_diagonal_matrix(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test inverting a diagonal matrix."""
     evaluator, data_dict = formula_evaluator
     g = data_dict["g"]
@@ -284,7 +284,7 @@ def test_inverting_diagonal_matrix(formula_evaluator: tuple(FormulaEvaluator, di
     )
 
 
-def test_nan_handling(formula_evaluator: tuple(FormulaEvaluator, dict[str, pd.DataFrame])):
+def test_nan_handling(formula_evaluator: tuple[FormulaEvaluator, dict[str, pd.DataFrame]]) -> None:
     """Test formula with mixed NaN handling."""
     evaluator, data_dict = formula_evaluator
     a, i = data_dict["a"], data_dict["i"]

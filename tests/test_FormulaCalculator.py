@@ -76,7 +76,7 @@ def create_coefficient_map() -> pd.DataFrame:
 
 
 @pytest.fixture
-def coefficient_calculator() -> tuple(CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame):
+def coefficient_calculator() -> tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]:
     """Pytest fixture for CoefficientCalculator with test data."""
     data_dict = create_test_data()
     coef_map = create_coefficient_map()
@@ -84,9 +84,9 @@ def coefficient_calculator() -> tuple(CoefficientCalculator, dict[str, pd.DataFr
     return calculator, data_dict, coef_map
 
 
-def test_compute_coefficients(coefficient_calculator: tuple):
+def test_compute_coefficients(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test that coefficients are computed correctly."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, _, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -109,9 +109,9 @@ def test_compute_coefficients(coefficient_calculator: tuple):
         f"Expected {len(expected_coefficients)} coefficients, got {len(computed_coefficients)}"
 
 
-def test_skipped_coefficients(coefficient_calculator: tuple):
+def test_skipped_coefficients(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test that invalid coefficients are skipped."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, _, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -127,9 +127,9 @@ def test_skipped_coefficients(coefficient_calculator: tuple):
         assert coef_name not in computed_coefficients, f"{coef_name} was computed but should be skipped"
 
 
-def test_coefficient_simple_addition(coefficient_calculator: tuple):
+def test_coefficient_simple_addition(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test simple addition coefficient."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, data_dict, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -151,9 +151,9 @@ def test_coefficient_simple_addition(coefficient_calculator: tuple):
     )
 
 
-def test_coefficient_complex_operations(coefficient_calculator: tuple):
+def test_coefficient_complex_operations(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test complex nested operations coefficient."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, data_dict, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -181,9 +181,9 @@ def test_coefficient_complex_operations(coefficient_calculator: tuple):
     )
 
 
-def test_coefficient_nan_handling(coefficient_calculator: tuple):
+def test_coefficient_nan_handling(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test NaN handling in coefficients."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, data_dict, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -209,9 +209,9 @@ def test_coefficient_nan_handling(coefficient_calculator: tuple):
     )
 
 
-def test_coefficient_division_by_diagonal(coefficient_calculator: tuple):
+def test_coefficient_division_by_diagonal(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test division by diagonal matrix coefficient."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, data_dict, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
@@ -237,9 +237,9 @@ def test_coefficient_division_by_diagonal(coefficient_calculator: tuple):
     )
 
 
-def test_coefficient_division_by_sparse(coefficient_calculator: tuple):
+def test_coefficient_division_by_sparse(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series], pd.DataFrame]) -> None:
     """Test division by sparse matrix coefficient."""
-    calculator, data_dict, coef_map = coefficient_calculator
+    calculator, data_dict, _ = coefficient_calculator
     
     # Compute coefficients
     computed_coefficients = calculator.compute_coefficients()
