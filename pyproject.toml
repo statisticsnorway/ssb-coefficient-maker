@@ -16,6 +16,11 @@ Changelog = "https://github.com/statisticsnorway/ssb-coefficient-maker/releases"
 [tool.poetry.dependencies]
 python = "^3.10"
 click = ">=8.0.1"
+pandas = "^2.2.3"
+numpy = "^2.2.3"
+sympy = "^1.13.3"
+mpmath = "^1.3.0"
+pydantic = "^2.10.6"
 
 [tool.poetry.group.dev.dependencies]
 pygments = ">=2.10.0"
