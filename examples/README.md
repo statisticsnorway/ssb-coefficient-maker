@@ -430,7 +430,6 @@ While broadcasting is convenient, it can lead to unexpected results or bugs:
 
 For deeper details on broadcasting behavior, refer to:
 - [NumPy Broadcasting Documentation](https://numpy.org/doc/stable/user/basics.broadcasting.html)
-- [Pandas Computational Methods Documentation](https://pandas.pydata.org/pandas-docs/stable/user_guide/computation.html)
 
 
 ### Handling Misaligned Indices
