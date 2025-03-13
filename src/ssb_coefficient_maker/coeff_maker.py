@@ -64,6 +64,7 @@ class _ResultValidator:
         self.fill_invalid = fill_invalid
         self.verbose = verbose
         self.adp_enabled = adp_enabled
+        
 
     def validate(
         self,
@@ -163,7 +164,7 @@ class _ResultValidator:
                 return pd.DataFrame(
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
-                    name=result.name,
+                    columns=result.columns
                 )
                     
         elif isinstance(result, pd.Series):
@@ -178,7 +179,6 @@ class _ResultValidator:
                 return pd.Series(
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
-                    name=result.name,
                 )
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
@@ -490,6 +490,7 @@ class _ResultValidator:
             ValueError: With an appropriate error message.
         """
         if mixture_issue:
+            pass
             raise ValueError(
                 f"Operation between Series {series_vars} and "
                 f"DataFrames {df_vars} in formula '{formula_str}' resulted in all invalid values. "
@@ -588,7 +589,7 @@ class FormulaEvaluator:
     def __init__(
         self,
         data_dict: dict[str, pd.DataFrame | pd.Series],
-        adp_enabled: bool = True,
+        adp_enabled: bool = False,
         decimal_precision: Annotated[int, Field(gt=0)] = 35,
         fill_invalid: bool = False,
         verbose: bool = False,
@@ -600,7 +601,7 @@ class FormulaEvaluator:
                 to pandas objects (DataFrames or Series).
             adp_enabled (bool): Whether to enable arbitrary decimal precision
                 using mpmath. If True, all numeric values will be converted to mpmath.mpf.
-                Defaults to True.
+                Defaults to False.
             decimal_precision (int): Number of decimal digits for precision when arbitrary precision
                 is enabled. Must be positive. Defaults to 35 (roughly equivalent to 128-bit).
             fill_invalid (bool): Whether to replace Inf and NaN values with zeros in the computation
@@ -618,7 +619,8 @@ class FormulaEvaluator:
         self.validator = _ResultValidator(
             fill_invalid=fill_invalid, verbose=verbose, adp_enabled=adp_enabled
         )
-
+        
+                
         # If arbitrary precision is enabled, use mpf
         if adp_enabled:
             if not decimal_precision:
@@ -718,8 +720,12 @@ class FormulaEvaluator:
     ) -> pd.DataFrame | pd.Series:
         """Perform the actual formula evaluation.
 
+        This method evaluates mathematical formulas using pandas objects. It handles
+        special cases like Series-DataFrame broadcasting by converting Series to
+        transposed DataFrames to ensure correct alignment during operations.
+
         Args:
-            formula_str (str): Formula string to evaluate.
+            formula_str (Union[str, sp.Expr]): Formula string or sympy expression to evaluate.
 
         Returns:
             Union[pd.DataFrame, pd.Series]: The result of evaluating the formula.
@@ -730,6 +736,7 @@ class FormulaEvaluator:
             KeyError: If the formula references a variable not present in the data dictionary.
             SyntaxError: If the formula contains invalid syntax for pandas eval.
             TypeError: If an operation in the formula is not supported between the given types.
+            ZeroDivisionError: If division by zero occurs when arbitrary decimal precision is enabled.
         """
         # Check for power operations in ADP mode
         if self.adp_enabled and "**" in formula_str:
@@ -739,9 +746,25 @@ class FormulaEvaluator:
                 "Consider using DataFrame.pow() method instead or pre-compute this operation."
             )
 
+        
         try:
+            eval_dict = {}   # for storing variables that are evalauated
+            # Transform Series objects and collect their indices, this is to ensure that we dont
+            # get nan matrices due to wrong broadcasting, and to add the index to result
+            for key, val in self.data_dict.copy().items():
+                if isinstance(val, pd.Series):
+                    # Convert Series to transposed dataframes for correct broadcasting
+                    eval_dict[key] = pd.DataFrame(val.transpose())
+                else:
+                    eval_dict[key] = val
+                    
             # Evaluates formula expression and calculates result
-            return pd.eval(formula_str, local_dict=self.data_dict)
+            result = pd.eval(formula_str, local_dict=eval_dict)
+                
+            return result
+            
+            # # Evaluates formula expression and calculates result
+            # return pd.eval(formula_str, local_dict=self.data_dict)
         except KeyError as e:
             # Variable not found in data dictionary
             raise KeyError(
@@ -753,7 +776,15 @@ class FormulaEvaluator:
         except TypeError as e:
             # Type error in operation
             raise TypeError(f"Type error in formula '{formula_str}': {e}") from e
-
+        except ZeroDivisionError as e:
+            if self.adp_enabled:
+                raise ZeroDivisionError(
+                    f"Zero division error in formula '{formula_str}': "
+                    "Division by zero is not supported when using arbitrary decimal precision (adp_enabled=True). "
+                    "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
+                    "2) Modify your input data to avoid division by zero."
+                ) from e
+                
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
 
