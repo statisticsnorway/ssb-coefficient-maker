@@ -180,6 +180,7 @@ class _ResultValidator:
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
                 )
+            
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
@@ -746,25 +747,33 @@ class FormulaEvaluator:
                 "Consider using DataFrame.pow() method instead or pre-compute this operation."
             )
 
-        
         try:
-            eval_dict = {}   # for storing variables that are evalauated
-            # Transform Series objects and collect their indices, this is to ensure that we dont
-            # get nan matrices due to wrong broadcasting, and to add the index to result
-            for key, val in self.data_dict.copy().items():
+            # Create a copy of the data dictionary with Series transposed for evaluation
+            eval_dict = {}
+            series_indices = []
+            
+            # Transform Series objects and collect their indices
+            for key, val in self.data_dict.items():
                 if isinstance(val, pd.Series):
-                    # Convert Series to transposed dataframes for correct broadcasting
-                    eval_dict[key] = pd.DataFrame(val.transpose())
+                    series_indices.append(val.index)
+                    # Convert Series to transposed NumPy array for correct broadcasting
+                    eval_dict[key] = val.T.to_numpy()
                 else:
                     eval_dict[key] = val
                     
             # Evaluates formula expression and calculates result
             result = pd.eval(formula_str, local_dict=eval_dict)
-                
-            return result
             
-            # # Evaluates formula expression and calculates result
-            # return pd.eval(formula_str, local_dict=self.data_dict)
+            # Apply common index to Series if all Series have the same index
+            if series_indices and all(index.equals(series_indices[0]) for index in series_indices):
+                common_index = series_indices[0]
+                if isinstance(result, pd.DataFrame):
+                    result.index = common_index
+                elif isinstance(result, pd.Series):
+                    result.index = common_index
+        
+            return result
+
         except KeyError as e:
             # Variable not found in data dictionary
             raise KeyError(
