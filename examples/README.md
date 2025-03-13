@@ -1,9 +1,9 @@
-# Formula Evaluation and Coefficient Calculation Guide
+# Guide to using Formula Evaluator and CoefficientCalculator
 
-Author: Benedikt Goodman
+Author: Benedikt Goodman\
 Helper: Claude Sonnet 3.7 by Anthropic
 
-This guide demonstrates how to use the `FormulaEvaluator` and `CoefficientCalculator` classes for mathematical formula evaluation with pandas objects. These classes aim to streamline linear algebra operations, and to make it as easy as possible to create coefficients from input-output models. The classes support arbitrary floating point numbers for high-precision calculations and provides validation on input data.
+This guide demonstrates how to use the `FormulaEvaluator` and `CoefficientCalculator` classes for mathematical formula evaluation with pandas objects. These classes aim to streamline linear algebra operations, and to make it as easy as possible to create coefficients for input-output models. The classes support arbitrary floating point numbers using `mpmath` for high-precision calculations and provides validation on input data.
 
 ## Table of Contents
 - [Basic Usage](#basic-usage)
@@ -43,7 +43,7 @@ result = evaluator.evaluate_formula('matrix_a * vector_b')
 print(result)
 ```
 
-Output:
+Terminal output:
 ```
      col1   col2
 0   10.0   40.0
@@ -79,6 +79,12 @@ verbose_evaluator = FormulaEvaluator(data, verbose=True)
 
 # With custom precision (100 digits)
 high_precision_evaluator = FormulaEvaluator(data, adp_enabled=True, decimal_precision=100)
+```
+
+Terminal output with verbose logging:
+```
+FormulaEvaluator initialized with 2 variables
+Settings: precision_mode=mpmath, fill_invalid=False
 ```
 
 ## Validation Process
@@ -154,6 +160,23 @@ print("\nSafe result (zeros instead of Inf/NaN):")
 print(result2)
 ```
 
+Terminal output:
+```
+Warning: Formula 'numerator / denominator' using variables ['numerator', 'denominator'] produced a result with 22.2% invalid values. Some values are infinite due to division by zero. Consider checking your input data and formula for potential issues.
+
+Default result (with warnings):
+     A    B
+0  1.0  1.0
+1  inf  1.0
+2  1.0  inf
+
+Safe result (zeros instead of Inf/NaN):
+     A    B
+0  1.0  1.0
+1  0.0  1.0
+2  1.0  0.0
+```
+
 ## Working with Arbitrary Decimal Precision
 
 The `adp_enabled` parameter controls whether to use arbitrary decimal precision via the mpmath library:
@@ -186,31 +209,26 @@ result_high = high_prec.evaluate_formula('very_small * very_large')
 print("High precision result:")
 print(result_high)
 
-# Output would be:
-"""
-High precision result:
-0    1.0
-1    4.0
-2    9.0
-dtype: object
-"""
-
 # With standard numpy precision
 std_prec = FormulaEvaluator(data, adp_enabled=False)
 result_std = std_prec.evaluate_formula('very_small * very_large')
 print("\nStandard precision result:")
 print(result_std)
+```
 
-# Output would be:
-"""
+Terminal output:
+```
+High precision result:
+0    1.0
+1    4.0
+2    9.0
+dtype: object
+
 Standard precision result:
 0    1.0
 1    4.0
 2    9.0
 dtype: float64
-"""
-# Note: In some cases with more extreme values,
-# the standard precision might show rounding errors
 ```
 
 ## Handling Invalid Values
@@ -251,6 +269,23 @@ evaluator2 = FormulaEvaluator(data, fill_invalid=True)
 result2 = evaluator2.evaluate_formula('a / b')
 print("\nResult with zeros instead of Inf values:")
 print(result2)
+```
+
+Terminal output:
+```
+Warning: Formula 'a / b' using variables ['a', 'b'] produced a result with 33.3% invalid values. Some values are infinite due to division by zero. Consider checking your input data and formula for potential issues.
+
+Result with warnings for Inf values:
+0    inf
+1    1.0
+2    1.0
+dtype: float64
+
+Result with zeros instead of Inf values:
+0    0.0
+1    1.0
+2    1.0
+dtype: float64
 ```
 
 ## CoefficientCalculator Usage
@@ -298,8 +333,14 @@ calculator = CoefficientCalculator(
 # Compute all coefficients
 results = calculator.compute_coefficients()
 
-# Terminal would show:
-"""
+# Display results
+for name, value in results.items():
+    print(f"\nCoefficient: {name}")
+    print(value)
+```
+
+Terminal output:
+```
 FormulaEvaluator initialized with 3 variables
 Settings: precision_mode=mpmath, fill_invalid=True
 
@@ -323,15 +364,7 @@ Successfully computed coefficient: scaled_matrix
 
 Skipping coefficient invalid_formula: No formula provided
 Skipping coefficient missing_var: Missing variables ['matrix3']
-"""
 
-# Display results
-for name, value in results.items():
-    print(f"\nCoefficient: {name}")
-    print(value)
-
-# Terminal would show:
-"""
 Coefficient: sum_matrix
      A     B
 0  6.0  10.0
@@ -346,7 +379,6 @@ Coefficient: scaled_matrix
       A     B
 0  10.0  30.0
 1  20.0  40.0
-"""
 ```
 
 ## Understanding Broadcasting in Pandas and NumPy
@@ -390,28 +422,25 @@ result1 = evaluator.evaluate_formula('df * series_index')
 print("Column-wise broadcasting (df * series_index):")
 print(result1)
 
-# Output would be:
-"""
+# Row-wise broadcasting (Series values applied to each row)
+result2 = evaluator.evaluate_formula('df * series_columns')
+print("\nRow-wise broadcasting (df * series_columns):")
+print(result2)
+```
+
+Terminal output:
+```
 Column-wise broadcasting (df * series_index):
       A     B
 0   10    40
 1   40   100
 2   90   180
-"""
 
-# Row-wise broadcasting (Series values applied to each row)
-result2 = evaluator.evaluate_formula('df * series_columns')
-print("\nRow-wise broadcasting (df * series_columns):")
-print(result2)
-
-# Output would be:
-"""
 Row-wise broadcasting (df * series_columns):
       A     B
 0   10    80
 1   20   100
 2   30   120
-"""
 ```
 
 ### Potential Issues with Broadcasting
@@ -466,6 +495,39 @@ print("\nResult with misaligned indices (zeros for NaN):")
 print(result2)
 ```
 
+Terminal output:
+```
+FormulaEvaluator initialized with 2 variables
+Settings: precision_mode=mpmath, fill_invalid=False
+Evaluating formula: df1 + df2
+WARNING: Result contains 4/8 (50.00%) invalid values
+ - Result contains NaN values
+Warning: Formula 'df1 + df2' using variables ['df1', 'df2'] produced a result with 50.0% invalid values. Some values are NaN, which could indicate partial data misalignment, missing values in the original data, or operations that produced undefined results for some elements. Consider checking your input data and formula for potential issues.
+Formula evaluation complete. Result shape: (4, 2)
+Result with misaligned indices (warnings):
+      A     B
+0    NaN   NaN
+1   12.0  45.0
+2   23.0  56.0
+3    NaN   NaN
+
+FormulaEvaluator initialized with 2 variables
+Settings: precision_mode=mpmath, fill_invalid=True
+Evaluating formula: df1 + df2
+WARNING: Result contains 4/8 (50.00%) invalid values
+ - Result contains NaN values
+Invalid values will be replaced with zeros
+Replaced 4 invalid values (NaN/Inf) with zeros
+Formula evaluation complete. Result shape: (4, 2)
+
+Result with misaligned indices (zeros for NaN):
+      A     B
+0    0.0   0.0
+1   12.0  45.0
+2   23.0  56.0
+3    0.0   0.0
+```
+
 ## Best Practices
 
 1. **Choose the Right Precision Mode**:
@@ -492,4 +554,4 @@ print(result2)
    - When computing many related coefficients, use `CoefficientCalculator` instead of multiple `FormulaEvaluator` calls
    - This ensures consistent handling of all computations
 
-By following these guidelines, you can effectively use `FormulaEvaluator` and `CoefficientCalculator` for robust mathematical operations with pandas objects.
+By following these guidelines, you can use `FormulaEvaluator` and `CoefficientCalculator` for mathematical operations with pandas objects and create coefficient matrices to your heart's delight.
