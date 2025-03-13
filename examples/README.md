@@ -30,7 +30,8 @@ from formula_evaluation import FormulaEvaluator
 data = {
     'matrix_a': pd.DataFrame({
         'col1': [1.0, 2.0, 3.0],
-        'col2': [4.0, 5.0, 6.0]
+        'col2': [4.0, 5.0, 6.0],
+        'col3': [7.0, 8.0, 9.0],
     }),
     'vector_b': pd.Series([10.0, 20.0, 30.0])
 }
