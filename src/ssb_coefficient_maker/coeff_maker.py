@@ -68,7 +68,7 @@ class _ResultValidator:
     def validate(
         self,
         result: pd.DataFrame | pd.Series,
-        formula_str: str,
+        formula_str: str | sp.Expr,
         data_dict: dict[str, pd.DataFrame | pd.Series],
     ) -> tuple[pd.DataFrame | pd.Series, int]:
         """Validate the result of formula evaluation.
@@ -151,9 +151,6 @@ class _ResultValidator:
         Returns:
             Union[pd.DataFrame, pd.Series, pd.Series]: DataFrame or Series of booleans with True for invalid values.
         """
-        import numpy as np
-        import pandas as pd
-
         if isinstance(result, pd.DataFrame):
             if self.adp_enabled:
                 # For mpmath objects
@@ -178,7 +175,7 @@ class _ResultValidator:
             # For other types, return empty mask
             return pd.Series([False])
 
-    def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int | Any:
+    def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
 
         Args:
@@ -190,9 +187,9 @@ class _ResultValidator:
         invalid_mask = self._get_invalid_mask(result)
 
         if isinstance(invalid_mask, pd.DataFrame):
-            return invalid_mask.sum().sum()
+            return int(invalid_mask.sum().sum())
         elif isinstance(invalid_mask, pd.Series):
-            return invalid_mask.sum()
+            return int(invalid_mask.sum())
         else:
             return 0
 
@@ -320,20 +317,17 @@ class _ResultValidator:
         Returns:
             Tuple[bool, bool, bool, bool]: Tuple containing (all_invalid, some_invalid, has_nan, has_inf)
         """
-        import numpy as np
-        import pandas as pd
-
         # Get invalid mask
         invalid_mask = self._get_invalid_mask(result)
 
         # Check for all vs some invalid values
         if isinstance(invalid_mask, pd.DataFrame):
-            all_invalid = invalid_mask.all().all()
-            some_invalid = invalid_mask.any().any() and not all_invalid
+            all_invalid = bool(invalid_mask.all().all())
+            some_invalid = bool(invalid_mask.any().any()) and not all_invalid
 
         elif isinstance(invalid_mask, pd.Series):
-            all_invalid = invalid_mask.all()
-            some_invalid = invalid_mask.any() and not all_invalid
+            all_invalid = bool(invalid_mask.all())
+            some_invalid = bool(invalid_mask.any()) and not all_invalid
         else:
             all_invalid = False
             some_invalid = False
@@ -342,23 +336,29 @@ class _ResultValidator:
         if isinstance(result, pd.DataFrame):
             # We need to check the attributes of each number in the series or dataframe in the case of using mpf floats
             if self.adp_enabled:
-                has_nan = result.map(lambda x: getattr(x, "is_nan", False)).any().any()
-                has_inf = (
+                has_nan = bool(
+                    result.map(lambda x: getattr(x, "is_nan", False)).any().any()
+                )
+                has_inf = bool(
                     result.map(lambda x: getattr(x, "is_infinite", False)).any().any()
                 )
             # if using numpy we just check if there are any inf or nan values
             else:
-                has_nan = result.isna().any().any()
-                has_inf = np.isinf(result.values).any()
+                has_nan = bool(result.isna().any().any())
+                has_inf = bool(np.isinf(result.values).any())
 
         # Same operation as above, but for series
         elif isinstance(result, pd.Series):
             if self.adp_enabled:
-                has_nan = result.apply(lambda x: getattr(x, "is_nan", False)).any()
-                has_inf = result.apply(lambda x: getattr(x, "is_infinite", False)).any()
+                has_nan = bool(
+                    result.apply(lambda x: getattr(x, "is_nan", False)).any()
+                )
+                has_inf = bool(
+                    result.apply(lambda x: getattr(x, "is_infinite", False)).any()
+                )
             else:
-                has_nan = result.isna().any()
-                has_inf = np.isinf(result.values).any()
+                has_nan = bool(result.isna().any())
+                has_inf = bool(np.isinf(result.values).any())
         else:
             has_nan = False
             has_inf = False
@@ -406,7 +406,7 @@ class _ResultValidator:
             print("Invalid values will be replaced with zeros")
 
     def _parse_formula(
-        self, formula_str: str, data_dict: dict[str, pd.DataFrame | pd.Series]
+        self, formula_str: str | sp.Expr, data_dict: dict[str, pd.DataFrame | pd.Series]
     ) -> sp.Expr:
         """Parse a formula string into a sympy expression.
 
@@ -435,7 +435,7 @@ class _ResultValidator:
         return [str(symbol) for symbol in expr.free_symbols]
 
     def _check_variable_mixture(
-        self, formula_str: str, data_dict: dict[str, pd.DataFrame | pd.Series]
+        self, formula_str: str | sp.Expr, data_dict: dict[str, pd.DataFrame | pd.Series]
     ) -> tuple[list[str], list[str], list[str], bool]:
         """Check if the formula mixes Series and DataFrame variables.
 
@@ -465,7 +465,7 @@ class _ResultValidator:
 
     def _handle_all_invalid(
         self,
-        formula_str: str,
+        formula_str: str | sp.Expr,
         variables: list[str],
         series_vars: list[str],
         df_vars: list[str],
@@ -500,7 +500,7 @@ class _ResultValidator:
 
     def _create_warning_message(
         self,
-        formula_str: str,
+        formula_str: str | sp.Expr,
         result: pd.DataFrame | pd.Series,
         variables: list[str],
         series_vars: list[str],
@@ -707,7 +707,9 @@ class FormulaEvaluator:
 
         return variables
 
-    def _perform_evaluation(self, formula_str: str) -> pd.DataFrame | pd.Series:
+    def _perform_evaluation(
+        self, formula_str: str | sp.Expr
+    ) -> pd.DataFrame | pd.Series:
         """Perform the actual formula evaluation.
 
         Args:
@@ -746,7 +748,7 @@ class FormulaEvaluator:
             # Type error in operation
             raise TypeError(f"Type error in formula '{formula_str}': {e}") from e
 
-    def evaluate_formula(self, formula_str: str) -> pd.DataFrame | pd.Series:
+    def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
 
         Computes the result of the formula using pandas eval() with the
