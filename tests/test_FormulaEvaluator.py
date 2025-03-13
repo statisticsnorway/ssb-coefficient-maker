@@ -26,9 +26,6 @@ def create_test_data() -> dict[str, pd.DataFrame]:
         ).astype(float),
     }
     
-    # ensure zero is present in matrix e
-    #data_dict['e'][1,1] = 0
-    
     # Add a diagonal matrix
     diag_values = rng.integers(low=1, high=10, size=(3))
     diag_matrix = np.diag(diag_values)
