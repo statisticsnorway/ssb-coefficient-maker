@@ -142,14 +142,14 @@ class _ResultValidator:
 
     def _get_invalid_mask(
         self, result: pd.DataFrame | pd.Series
-    ) -> pd.DataFrame | pd.Series | pd.Series:
+    ) -> pd.DataFrame | pd.Series:
         """Create a mask identifying where all invalid values (NaN and Inf) are in result.
 
         Args:
             result (Union[pd.DataFrame, pd.Series]): DataFrame or Series to check for invalid values.
 
         Returns:
-            Union[pd.DataFrame, pd.Series, pd.Series]: DataFrame or Series of booleans with True for invalid values.
+            Union[pd.DataFrame, pd.Series]: DataFrame or Series of booleans with True for invalid values.
         """
         if isinstance(result, pd.DataFrame):
             if self.adp_enabled:
@@ -159,8 +159,13 @@ class _ResultValidator:
                     or getattr(x, "is_infinite", False)
                 )
             else:
-                # For numpy floats
-                return result.isna() | np.isinf(result.values)
+                # For numpy floats, returns mask with true where either below are the case.
+                return pd.DataFrame(
+                    data=np.logical_or(result.isna(), np.isinf(result.values)),
+                    index=result.index,
+                    name=result.name,
+                )
+                    
         elif isinstance(result, pd.Series):
             if self.adp_enabled:
                 # For mpmath objects
@@ -169,11 +174,12 @@ class _ResultValidator:
                     or getattr(x, "is_infinite", False)
                 )
             else:
-                # For numpy floats
-                return result.isna() | np.isinf(result.values)
-        else:
-            # For other types, return empty mask
-            return pd.Series([False])
+                # For numpy floats, returns mask with true where either below are the case.
+                return pd.Series(
+                    data=np.logical_or(result.isna(), np.isinf(result.values)),
+                    index=result.index,
+                    name=result.name,
+                )
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
