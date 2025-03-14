@@ -769,17 +769,13 @@ class FormulaEvaluator:
             # Evaluates formula expression and calculates result
             result = pd.eval(formula_str, local_dict=eval_dict)
 
-            # Apply common index to Series if all Series have the same index
+            # Apply common index to result Series if all Series have the same index
             if series_indices and all(
                 index.equals(series_indices[0]) for index in series_indices
             ):
                 common_index = series_indices[0]
-                if isinstance(result, pd.DataFrame):
+                if isinstance(result, pd.Series):
                     result.index = common_index
-                elif isinstance(result, pd.Series):
-                    result.index = common_index
-
-            return result
 
         except KeyError as e:
             # Variable not found in data dictionary
@@ -800,6 +796,8 @@ class FormulaEvaluator:
                     "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
                     "2) Modify your input data to avoid division by zero."
                 ) from e
+
+        return result
 
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
