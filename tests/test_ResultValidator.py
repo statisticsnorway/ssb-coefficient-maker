@@ -1,6 +1,7 @@
 """Pytest module for testing the _ResultValidator class."""
 
 import warnings
+from typing import Any
 
 import mpmath
 import numpy as np
@@ -392,9 +393,9 @@ def test_handle_all_invalid_no_mixture(
 
     # Setup test parameters
     formula_str = "a / b"
-    variables = ["a", "b"]
-    series_vars = []
-    df_vars = ["a", "b"]
+    variables: list[str] = ["a", "b"]
+    series_vars: list[str] = []
+    df_vars: list[str] = ["a", "b"]
     mixture_issue = False
 
     # Test that ValueError is raised with appropriate message
@@ -421,9 +422,9 @@ def test_create_warning_message(
     # Setup test parameters
     formula_str = "a / b"
     result = pd.DataFrame({"A": [1.0, np.nan, 3.0], "B": [np.inf, 5.0, 6.0]})
-    variables = ["a", "b"]
-    series_vars = []
-    df_vars = ["a", "b"]
+    variables: list[str] = ["a", "b"]
+    series_vars: list[str] = []
+    df_vars: list[str] = ["a", "b"]
     mixture_issue = False
     has_nan = True
     has_inf = True
@@ -483,18 +484,16 @@ def test_validate_some_invalid_no_fill(
     # Create a temporary formula for testing that uses existing variables
     formula = "normal_df + small_df"
 
-    # Mock the _check_variable_mixture method to return predefined values
-    # This allows us to test warning generation without needing actual variables
-    original_check_mixture = validator._check_variable_mixture
-    validator._check_variable_mixture = lambda f, d: (
-        ["normal_df", "small_df"],
-        [],
-        ["normal_df", "small_df"],
-        False,
-    )
+    # Use monkeypatch pattern for mocking methods
+    from unittest.mock import patch
 
     # Catch warnings
-    with warnings.catch_warnings(record=True) as w:
+    with warnings.catch_warnings(record=True) as w, patch.object(
+        validator,
+        "_check_variable_mixture",
+        return_value=(["normal_df", "small_df"], [], ["normal_df", "small_df"], False),
+    ):
+
         # Call validate
         result, invalid_count = validator.validate(test_df, formula, data_dict)
 
@@ -503,9 +502,6 @@ def test_validate_some_invalid_no_fill(
         assert "Warning: Formula" in str(
             w[0].message
         ), f"Expected 'Warning: Formula' in warning, got '{w[0].message!s}'"
-
-    # Restore original method
-    validator._check_variable_mixture = original_check_mixture
 
     # Verify result is unchanged and invalid count is correct
     pd.testing.assert_frame_equal(result, test_df)
@@ -548,37 +544,32 @@ def test_validate_all_invalid(
     # Use a formula with variables that exist in the data dict
     formula = "normal_df + small_df"
 
-    # Mock the _check_variable_mixture method to return predefined values
-    original_check_mixture = validator._check_variable_mixture
-    validator._check_variable_mixture = lambda f, d: (
-        ["normal_df", "small_df"],
-        [],
-        ["normal_df", "small_df"],
-        False,
-    )
+    # Use monkeypatch pattern with unittest.mock for mocking methods
+    from unittest.mock import patch
 
-    # Also need to mock _handle_all_invalid to trigger the specific error we want to test
-    original_handle_all_invalid = validator._handle_all_invalid
-
-    def mock_handle_all_invalid(*args, **kwargs):
+    # Create a mock function for _handle_all_invalid that raises the expected error
+    def mock_handle_all_invalid(*args: Any, **kwargs: Any) -> None:
         raise ValueError(
             "Operation using variables resulted in all invalid values. This suggests a fundamental problem"
         )
 
-    validator._handle_all_invalid = mock_handle_all_invalid
+    # Use patch to mock both methods
+    with patch.object(
+        validator,
+        "_check_variable_mixture",
+        return_value=(["normal_df", "small_df"], [], ["normal_df", "small_df"], False),
+    ), patch.object(
+        validator, "_handle_all_invalid", side_effect=mock_handle_all_invalid
+    ):
 
-    # Test that ValueError is raised
-    with pytest.raises(ValueError) as excinfo:
-        validator.validate(test_df, formula, data_dict)
+        # Test that ValueError is raised
+        with pytest.raises(ValueError) as excinfo:
+            validator.validate(test_df, formula, data_dict)
 
-    # Restore original methods
-    validator._check_variable_mixture = original_check_mixture
-    validator._handle_all_invalid = original_handle_all_invalid
-
-    # Verify error message
-    assert "resulted in all invalid values" in str(
-        excinfo.value
-    ), f"Expected 'resulted in all invalid values' in error message, got '{excinfo.value!s}'"
+        # Verify error message
+        assert "resulted in all invalid values" in str(
+            excinfo.value
+        ), f"Expected 'resulted in all invalid values' in error message, got '{excinfo.value!s}'"
 
 
 def test_validate_all_invalid_with_fill(
