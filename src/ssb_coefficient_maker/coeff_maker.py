@@ -800,9 +800,6 @@ class FormulaEvaluator:
                     "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
                     "2) Modify your input data to avoid division by zero."
                 ) from e
-            else:
-                # Re-raise the original exception when adp_enabled is False
-                raise
 
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
