@@ -77,6 +77,8 @@ result = evaluator.evaluate_formula('matrix_a * vector_b')
 print(result)
 ```
 
+> **Important Note**: When using `adp_enabled=True` (which is the default), you cannot use scalar values directly in formulas. All variables in your formula must be defined in the `data_dict`. For example, instead of using `a * 2`, you should include a Series with value 2 in your data dictionary and use it in the formula.
+
 ### Computing Multiple Coefficients
 
 ```python
@@ -141,7 +143,9 @@ from ssb_coefficient_maker import FormulaEvaluator
 data = {
     'principal': pd.Series([1000000.00, 2000000.00, 5000000.00]),
     'rate': pd.Series([0.0325, 0.0310, 0.0295]),
-    'periods': pd.Series([360, 240, 180])
+    'periods': pd.Series([360, 240, 180]),
+    'twelve': pd.Series([12]), # Scalar values must be included as Series
+    'one': pd.Series([1])      # when using arbitrary precision
 }
 
 # Create evaluator with 50 digits of precision
@@ -153,7 +157,7 @@ high_precision = FormulaEvaluator(
 
 # Calculate monthly payment using formula
 result = high_precision.evaluate_formula(
-    'principal * (rate/12) / (1 - (1 + rate/12)**(-periods))'
+    'principal * (rate/twelve) / (one - (one + rate/twelve)**(-periods))'
 )
 ```
 
