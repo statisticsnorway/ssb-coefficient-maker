@@ -64,7 +64,6 @@ class _ResultValidator:
         self.fill_invalid = fill_invalid
         self.verbose = verbose
         self.adp_enabled = adp_enabled
-        
 
     def validate(
         self,
@@ -151,6 +150,9 @@ class _ResultValidator:
 
         Returns:
             Union[pd.DataFrame, pd.Series]: DataFrame or Series of booleans with True for invalid values.
+
+        Raises:
+            TypeError: If the result is not of type pd.DataFrame or pd.Series.
         """
         if isinstance(result, pd.DataFrame):
             if self.adp_enabled:
@@ -164,9 +166,9 @@ class _ResultValidator:
                 return pd.DataFrame(
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
-                    columns=result.columns
+                    columns=result.columns,
                 )
-                    
+
         elif isinstance(result, pd.Series):
             if self.adp_enabled:
                 # For mpmath objects
@@ -180,7 +182,11 @@ class _ResultValidator:
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
                 )
-            
+        else:
+            raise TypeError(
+                "Expected result to be of type pd.DataFrame or pd.Series, "
+                f"but got {type(result).__name__} instead."
+            )
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
@@ -620,8 +626,7 @@ class FormulaEvaluator:
         self.validator = _ResultValidator(
             fill_invalid=fill_invalid, verbose=verbose, adp_enabled=adp_enabled
         )
-        
-                
+
         # If arbitrary precision is enabled, use mpf
         if adp_enabled:
             if not decimal_precision:
@@ -751,7 +756,7 @@ class FormulaEvaluator:
             # Create a copy of the data dictionary with Series transposed for evaluation
             eval_dict = {}
             series_indices = []
-            
+
             # Transform Series objects and collect their indices
             for key, val in self.data_dict.items():
                 if isinstance(val, pd.Series):
@@ -760,18 +765,20 @@ class FormulaEvaluator:
                     eval_dict[key] = val.T.to_numpy()
                 else:
                     eval_dict[key] = val
-                    
+
             # Evaluates formula expression and calculates result
             result = pd.eval(formula_str, local_dict=eval_dict)
-            
+
             # Apply common index to Series if all Series have the same index
-            if series_indices and all(index.equals(series_indices[0]) for index in series_indices):
+            if series_indices and all(
+                index.equals(series_indices[0]) for index in series_indices
+            ):
                 common_index = series_indices[0]
                 if isinstance(result, pd.DataFrame):
                     result.index = common_index
                 elif isinstance(result, pd.Series):
                     result.index = common_index
-        
+
             return result
 
         except KeyError as e:
@@ -793,7 +800,10 @@ class FormulaEvaluator:
                     "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
                     "2) Modify your input data to avoid division by zero."
                 ) from e
-                
+            else:
+                # Re-raise the original exception when adp_enabled is False
+                raise
+
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
 
