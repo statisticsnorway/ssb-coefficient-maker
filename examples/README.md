@@ -24,7 +24,7 @@ The `FormulaEvaluator` allows you to evaluate mathematical expressions using pan
 ```python
 import pandas as pd
 import numpy as np
-from formula_evaluation import FormulaEvaluator
+from ssb_coefficient_maker import FormulaEvaluator
 
 # Create some sample data
 data = {
@@ -196,7 +196,7 @@ Use arbitrary precision when:
 
 ```python
 import pandas as pd
-from formula_evaluation import FormulaEvaluator
+from ssb_coefficient_maker import FormulaEvaluator
 
 # Create data with values that need high precision
 data = {
@@ -248,7 +248,7 @@ The `fill_invalid` parameter determines how to handle invalid values (NaN and In
 
 ```python
 import pandas as pd
-from formula_evaluation import FormulaEvaluator
+from ssb_coefficient_maker import FormulaEvaluator
 
 # Create data with a zero value that will cause division by zero
 data = {
@@ -295,7 +295,7 @@ The `CoefficientCalculator` extends `FormulaEvaluator` to calculate multiple coe
 
 ```python
 import pandas as pd
-from formula_evaluation import CoefficientCalculator
+from ssb_coefficient_maker import CoefficientCalculator
 
 # Create sample data
 data = {
@@ -398,7 +398,7 @@ When pandas performs operations between DataFrames and Series, it follows NumPy'
 
 ```python
 import pandas as pd
-from formula_evaluation import FormulaEvaluator
+from ssb_coefficient_maker import FormulaEvaluator
 
 # Create DataFrame and Series with matching index
 df = pd.DataFrame({
@@ -466,7 +466,7 @@ For deeper details on broadcasting behavior, refer to:
 
 ```python
 import pandas as pd
-from formula_evaluation import FormulaEvaluator
+from ssb_coefficient_maker import FormulaEvaluator
 
 # Create data with misaligned indices
 data = {
