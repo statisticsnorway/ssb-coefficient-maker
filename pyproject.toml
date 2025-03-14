@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ssb-coefficient-maker"
-version = "0.0.0"
+version = "1.0.0"
 description = "SSB Coefficient Maker"
 authors = ["Benedikt Goodman <goodmanbenedikt@gmail.com>"]
 license = "MIT"
