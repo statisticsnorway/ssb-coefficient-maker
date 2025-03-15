@@ -880,7 +880,7 @@ class CoefficientCalculator:
         evaluator (FormulaEvaluator): Formula evaluator instance used for parsing and computing.
     """
 
-    @validate_call
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         data_dict: dict[str, pd.DataFrame | pd.Series],
