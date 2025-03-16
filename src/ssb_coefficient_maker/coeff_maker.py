@@ -179,6 +179,10 @@ class _ResultValidator:
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
                 )
+        
+        else:
+            # For other types, return empty mask
+            return pd.Series([False])
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
@@ -773,8 +777,6 @@ class FormulaEvaluator:
                 elif isinstance(result, pd.Series):
                     result.index = common_index
 
-            return result
-
         except KeyError as e:
             # Variable not found in data dictionary
             raise KeyError(
@@ -794,6 +796,8 @@ class FormulaEvaluator:
                     "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
                     "2) Modify your input data to avoid division by zero."
                 ) from e
+                
+        return result
 
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
         """Evaluate a formula string using pandas objects in data_dict.
@@ -915,11 +919,13 @@ class CoefficientCalculator:
             AttributeError: If adp_enabled is True but decimal_precision is not a positive integer.
             KeyError: If result_name_col or formula_name_col are not found in coefficient_map columns.
         """
+        #  check for mandatory columns
         self._validate_coefficient_map_headers(
             coefficient_map, [result_name_col, formula_name_col]
         )
 
-        self.data_dict = data_dict.copy()
+        # store data
+        self.data_dict = data_dict
         self.coefficient_map = coefficient_map
         self.result_name_col = result_name_col
         self.formula_name_col = formula_name_col
@@ -936,7 +942,7 @@ class CoefficientCalculator:
         )
 
     def _validate_coefficient_map_headers(
-        self, coefficient_map: pd.DataFrame, mandatory_cols: list
+        self, coefficient_map: pd.DataFrame, mandatory_cols: list[str]
     ) -> None:
         """Validate that required columns exist in the coefficient map.
 
