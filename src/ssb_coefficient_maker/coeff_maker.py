@@ -449,7 +449,7 @@ class _ResultValidator:
         """Check if the formula mixes Series and DataFrame variables.
 
         Args:
-            formula_str (str): The formula string to check.
+            formula_str (Union[str, sp.Expr]): The formula string to check.
             data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to pandas objects.
 
         Returns:
