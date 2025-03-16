@@ -914,10 +914,6 @@ class CoefficientCalculator:
             fill_invalid (bool): Whether to replace Inf and NaN values with zeros in the computation
                 results. Useful when handling division by zero in diagonal matrices. Defaults to False.
             verbose (bool): Whether to print verbose information during evaluation. Defaults to False.
-
-        Raises:
-            AttributeError: If adp_enabled is True but decimal_precision is not a positive integer.
-            KeyError: If result_name_col or formula_name_col are not found in coefficient_map columns.
         """
         #  check for mandatory columns
         self._validate_coefficient_map_headers(
