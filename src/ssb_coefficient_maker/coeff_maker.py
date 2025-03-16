@@ -561,7 +561,7 @@ class _ResultValidator:
                 )
 
         warning_msg += (
-            "Consider checking your input data and formula for potential issues."
+            "Consider checking your input data and formula for potential issues.\n"
         )
 
         return warning_msg
