@@ -811,7 +811,7 @@ class FormulaEvaluator:
             print(f"Evaluating formula: {formula_str}")
 
             # Check for division operations
-            if "/" in formula_str:
+            if "/" in str(formula_str):
                 print(
                     "Note: Formula contains division. Invalid values will "
                     + (
