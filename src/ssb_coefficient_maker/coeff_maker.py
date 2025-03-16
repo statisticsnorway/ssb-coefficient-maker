@@ -456,8 +456,6 @@ class _ResultValidator:
             Tuple[List[str], List[str], List[str], bool]: Tuple containing
                 (variables, series_vars, df_vars, mixture_issue)
         """
-        import pandas as pd
-
         # Parse the formula to get variables
         expr = self._parse_formula(formula_str, data_dict)
         variables = self._extract_variables(expr)
