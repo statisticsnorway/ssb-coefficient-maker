@@ -1,6 +1,7 @@
 # Guide to using Formula Evaluator and CoefficientCalculator
 
-Author: Benedikt Goodman
+Author: Benedikt Goodman\
+Helper: Claude Sonnet 3.7 by Anthropic
 
 This guide demonstrates how to use the `FormulaEvaluator` and `CoefficientCalculator` classes for mathematical formula evaluation with pandas objects. These classes aim to streamline linear algebra operations, and to make it as easy as possible to create coefficients for input-output models. The classes support arbitrary floating point numbers using `mpmath` for high-precision calculations and provides validation on input data.
 
@@ -32,7 +33,7 @@ data = {
         'col2': [4.0, 5.0, 6.0],
         'col3': [7.0, 8.0, 9.0],
     }),
-    'vector_b': pd.Series([10.0, 20.0, 30.0])  # Note: length matches the number of rows in matrix_a
+    'vector_b': pd.Series([10.0, 20.0, 30.0])  # Note: length matches the number of columns in matrix_a
 }
 
 # Initialize the evaluator with default settings
@@ -47,22 +48,16 @@ Terminal output:
 ```
 # vector_b contains values [10.0, 20.0, 30.0]
 # For matrix_a:
-# Row 0: [1.0, 4.0, 7.0]
-# Row 1: [2.0, 5.0, 8.0]
-# Row 2: [3.0, 6.0, 9.0]
+# Col 'col1': [1.0, 2.0, 3.0]
+# Col 'col2': [4.0, 5.0, 6.0]
+# Col 'col3': [7.0, 8.0, 9.0]
 
      col1   col2   col3
-0   10.0   40.0   70.0  # Row 0 * 10.0
-1   40.0  100.0  160.0  # Row 1 * 20.0
-2   90.0  180.0  270.0  # Row 2 * 30.0
+0   10.0   80.0  210.0  # Each column multiplied element-wise by vector_b
+1   20.0  100.0  240.0  # col1 * 10, col2 * 20, col3 * 30
+2   30.0  120.0  270.0  # across all rows
 ```
-
-**Note on Broadcasting**: In this example, the Series `vector_b` has the same length as the number of rows in `matrix_a`, which results in row-wise broadcasting. Each row is multiplied by the corresponding value in the Series:
-- Row 0 is multiplied by 10.0: `[1.0 × 10.0, 4.0 × 10.0, 7.0 × 10.0]` = `[10.0, 40.0, 70.0]`
-- Row 1 is multiplied by 20.0: `[2.0 × 20.0, 5.0 × 20.0, 8.0 × 20.0]` = `[40.0, 100.0, 160.0]`
-- Row 2 is multiplied by 30.0: `[3.0 × 30.0, 6.0 × 30.0, 9.0 × 30.0]` = `[90.0, 180.0, 270.0]`
-
-Proper index alignment is crucial for predictable broadcasting behavior in pandas operations.
+Proper index and shape alignment is crucial for predictable broadcasting behavior in pandas operations.
 
 ## Configuration Options
 
