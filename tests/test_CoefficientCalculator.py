@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ssb_coefficient_maker.coeff_maker import CoefficientCalculator, FormulaEvaluator
+from ssb_coefficient_maker.coeff_maker import CoefficientCalculator
 
 # Fixed seed for reproducible tests
 SEED = 42
@@ -27,33 +27,37 @@ def create_test_data() -> dict[str, pd.DataFrame | pd.Series]:
 def create_coefficient_map() -> pd.DataFrame:
     """Create a coefficient map for testing."""
     # Define coefficients with different formula types
-    return pd.DataFrame({
-        "result_name": [
-            "sum_ab",
-            "diff_ab",
-            "a_times_c",
-            "a_divided_by_b",
-            "empty_formula"
-        ],
-        "formula": [
-            "a + b",
-            "a - b",
-            "a * c",
-            "a / b",
-            ""  # Empty formula to test skipping
-        ],
-        "description": [
-            "Sum of matrices a and b",
-            "Difference of matrices a and b",
-            "Matrix a multiplied by vector c",
-            "Matrix a divided by matrix b (element-wise)",
-            "Empty formula to test skipping"
-        ]
-    })
+    return pd.DataFrame(
+        {
+            "result_name": [
+                "sum_ab",
+                "diff_ab",
+                "a_times_c",
+                "a_divided_by_b",
+                "empty_formula",
+            ],
+            "formula": [
+                "a + b",
+                "a - b",
+                "a * c",
+                "a / b",
+                "",  # Empty formula to test skipping
+            ],
+            "description": [
+                "Sum of matrices a and b",
+                "Difference of matrices a and b",
+                "Matrix a multiplied by vector c",
+                "Matrix a divided by matrix b (element-wise)",
+                "Empty formula to test skipping",
+            ],
+        }
+    )
 
 
 @pytest.fixture
-def coefficient_calculator() -> tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]:
+def coefficient_calculator() -> (
+    tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]
+):
     """Pytest fixture for the CoefficientCalculator with test data."""
     data_dict = create_test_data()
     coef_map = create_coefficient_map()
@@ -65,46 +69,51 @@ def coefficient_calculator() -> tuple[CoefficientCalculator, dict[str, pd.DataFr
         formula_name_col="formula",
         adp_enabled=False,  # Use standard precision for faster tests
         fill_invalid=True,  # Replace invalid values with zeros
-        verbose=False
+        verbose=False,
     )
 
     return calculator, data_dict
 
 
-def test_validate_coefficient_map_headers_valid(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_valid(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with valid column names."""
     calculator, _ = coefficient_calculator
 
     # Create coefficient map with required columns
-    coef_map = pd.DataFrame({
-        "result_col": ["test_result"],
-        "formula_col": ["a * 2"]
-    })
+    coef_map = pd.DataFrame({"result_col": ["test_result"], "formula_col": ["a * 2"]})
 
     # Validate headers explicitly (should not raise any exceptions)
     calculator._validate_coefficient_map_headers(
-        coefficient_map=coef_map,
-        mandatory_cols=["result_col", "formula_col"]
+        coefficient_map=coef_map, mandatory_cols=["result_col", "formula_col"]
     )
 
     # Test passes if no exception is raised
 
 
-def test_validate_coefficient_map_headers_missing_one(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_missing_one(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with one missing column."""
     calculator, _ = coefficient_calculator
 
     # Create coefficient map missing one required column
-    coef_map = pd.DataFrame({
-        "result_col": ["test_result"],
-        # Missing "formula_col"
-    })
+    coef_map = pd.DataFrame(
+        {
+            "result_col": ["test_result"],
+            # Missing "formula_col"
+        }
+    )
 
     # Validate headers for columns that include a missing one
     with pytest.raises(KeyError) as excinfo:
         calculator._validate_coefficient_map_headers(
-            coefficient_map=coef_map,
-            mandatory_cols=["result_col", "formula_col"]
+            coefficient_map=coef_map, mandatory_cols=["result_col", "formula_col"]
         )
 
     # Verify error message
@@ -112,20 +121,25 @@ def test_validate_coefficient_map_headers_missing_one(coefficient_calculator: tu
     assert "not found" in str(excinfo.value)
 
 
-def test_validate_coefficient_map_headers_missing_multiple(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_missing_multiple(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with multiple missing columns."""
     calculator, _ = coefficient_calculator
 
     # Create coefficient map with different column names
-    coef_map = pd.DataFrame({
-        "some_other_col": ["test_result"],
-    })
+    coef_map = pd.DataFrame(
+        {
+            "some_other_col": ["test_result"],
+        }
+    )
 
     # Validate headers for completely different column names
     with pytest.raises(KeyError) as excinfo:
         calculator._validate_coefficient_map_headers(
-            coefficient_map=coef_map,
-            mandatory_cols=["result_col", "formula_col"]
+            coefficient_map=coef_map, mandatory_cols=["result_col", "formula_col"]
         )
 
     # Verify error message contains both missing columns
@@ -134,7 +148,11 @@ def test_validate_coefficient_map_headers_missing_multiple(coefficient_calculato
     assert "not found" in str(excinfo.value)
 
 
-def test_validate_coefficient_map_headers_empty_df(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_empty_df(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with empty DataFrame."""
     calculator, _ = coefficient_calculator
 
@@ -144,8 +162,7 @@ def test_validate_coefficient_map_headers_empty_df(coefficient_calculator: tuple
     # Validate headers on empty DataFrame
     with pytest.raises(KeyError) as excinfo:
         calculator._validate_coefficient_map_headers(
-            coefficient_map=coef_map,
-            mandatory_cols=["result_col", "formula_col"]
+            coefficient_map=coef_map, mandatory_cols=["result_col", "formula_col"]
         )
 
     # Verify error message
@@ -153,48 +170,57 @@ def test_validate_coefficient_map_headers_empty_df(coefficient_calculator: tuple
     assert "formula_col" in str(excinfo.value)
 
 
-def test_validate_coefficient_map_headers_additional_columns(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_additional_columns(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with additional non-mandatory columns."""
     calculator, _ = coefficient_calculator
 
     # Create coefficient map with required columns plus extra ones
-    coef_map = pd.DataFrame({
-        "result_col": ["test_result"],
-        "formula_col": ["a * 2"],
-        "description": ["Test coefficient"],
-        "author": ["Test User"],
-        "date_added": ["2025-03-16"]
-    })
+    coef_map = pd.DataFrame(
+        {
+            "result_col": ["test_result"],
+            "formula_col": ["a * 2"],
+            "description": ["Test coefficient"],
+            "author": ["Test User"],
+            "date_added": ["2025-03-16"],
+        }
+    )
 
     # Validate headers (should not raise any exceptions)
     calculator._validate_coefficient_map_headers(
-        coefficient_map=coef_map,
-        mandatory_cols=["result_col", "formula_col"]
+        coefficient_map=coef_map, mandatory_cols=["result_col", "formula_col"]
     )
 
     # Test passes if no exception is raised
 
 
-def test_validate_coefficient_map_headers_empty_mandatory_list(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_validate_coefficient_map_headers_empty_mandatory_list(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test _validate_coefficient_map_headers with empty mandatory columns list."""
     calculator, _ = coefficient_calculator
 
     # Create coefficient map
-    coef_map = pd.DataFrame({
-        "result_col": ["test_result"],
-        "formula_col": ["a * 2"]
-    })
+    coef_map = pd.DataFrame({"result_col": ["test_result"], "formula_col": ["a * 2"]})
 
     # Validate headers with empty mandatory list (should not raise any exceptions)
     calculator._validate_coefficient_map_headers(
-        coefficient_map=coef_map,
-        mandatory_cols=[]
+        coefficient_map=coef_map, mandatory_cols=[]
     )
 
     # Test passes if no exception is raised
 
 
-def test_compute_coefficients_basic(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_compute_coefficients_basic(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test compute_coefficients with basic operations."""
     calculator, data_dict = coefficient_calculator
 
@@ -228,26 +254,42 @@ def test_compute_coefficients_basic(coefficient_calculator: tuple[CoefficientCal
     expected_div = expected_div.replace([np.inf, -np.inf, np.nan], 0)
 
     # Compare with calculated results
-    pd.testing.assert_frame_equal(results["sum_ab"].astype(np.float64), expected_sum.astype(np.float64))
-    pd.testing.assert_frame_equal(results["diff_ab"].astype(np.float64), expected_diff.astype(np.float64))
-    pd.testing.assert_frame_equal(results["a_times_c"].astype(np.float64), expected_mul.astype(np.float64))
-    pd.testing.assert_frame_equal(results["a_divided_by_b"].astype(np.float64), expected_div.astype(np.float64))
+    pd.testing.assert_frame_equal(
+        results["sum_ab"].astype(np.float64), expected_sum.astype(np.float64)
+    )
+    pd.testing.assert_frame_equal(
+        results["diff_ab"].astype(np.float64), expected_diff.astype(np.float64)
+    )
+    pd.testing.assert_frame_equal(
+        results["a_times_c"].astype(np.float64), expected_mul.astype(np.float64)
+    )
+    pd.testing.assert_frame_equal(
+        results["a_divided_by_b"].astype(np.float64), expected_div.astype(np.float64)
+    )
 
 
-def test_compute_coefficients_missing_variable(coefficient_calculator: tuple[CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]]) -> None:
+def test_compute_coefficients_missing_variable(
+    coefficient_calculator: tuple[
+        CoefficientCalculator, dict[str, pd.DataFrame | pd.Series]
+    ],
+) -> None:
     """Test compute_coefficients with a formula that uses a non-existent variable."""
     calculator, _ = coefficient_calculator
 
     # Add a formula with a missing variable
     new_coef_map = create_coefficient_map()
-    new_coef_map = pd.concat([
-        new_coef_map,
-        pd.DataFrame({
-            "result_name": ["missing_var"],
-            "formula": ["a + nonexistent_var"],
-            "description": ["Formula with missing variable"]
-        })
-    ])
+    new_coef_map = pd.concat(
+        [
+            new_coef_map,
+            pd.DataFrame(
+                {
+                    "result_name": ["missing_var"],
+                    "formula": ["a + nonexistent_var"],
+                    "description": ["Formula with missing variable"],
+                }
+            ),
+        ]
+    )
 
     # Replace the coefficient map
     calculator.coefficient_map = new_coef_map
