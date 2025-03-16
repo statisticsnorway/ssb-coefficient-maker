@@ -179,7 +179,7 @@ class _ResultValidator:
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
                 )
-        
+
         else:
             # For other types, return empty mask
             return pd.Series([False])
@@ -796,7 +796,7 @@ class FormulaEvaluator:
                     "Options: 1) Set adp_enabled=False to use numpy's handling of infinity, "
                     "2) Modify your input data to avoid division by zero."
                 ) from e
-                
+
         return result
 
     def evaluate_formula(self, formula_str: str | sp.Expr) -> pd.DataFrame | pd.Series:
