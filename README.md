@@ -27,12 +27,13 @@
 
 ## Features
 
-- Arbitrary decimal precision support using mpmath for accurate more accurate calculations
+- Arbitrary decimal precision support using mpmath for more accurate calculations
 - Validation system for detecting and handling invalid values (NaN, Inf, pd.NA)
 - Coefficient calculation based on formula definitions stored in a dataframe
 - Comprehensive error reporting with detailed diagnostics for debugging formulas
-- Support for mixed operations between DataFrames and Series with proper broadcasting
+- Support for mixed operations between DataFrames and Series
 - Configurable precision and error handling to suit different use cases
+- Flexible column naming in coefficient definition tables
 
 ## Requirements
 
@@ -50,26 +51,32 @@ You can install _SSB Coefficient Maker_ via [pip] from [PyPI]:
 
 ```console
 pip install ssb-coefficient-maker
+
+# or alternatively, if you're using poetry
+poetry add ssb-coefficient-maker
 ```
 
 ## Usage
 
 ### Basic Formula Evaluation
+The `FormulaEvaluator` allows you to evaluate mathematical expressions using pandas DataFrames and Series:
 
 ```python
 import pandas as pd
+import numpy as np
 from ssb_coefficient_maker import FormulaEvaluator
 
-# Create input data
+# Create some sample data
 data = {
     'matrix_a': pd.DataFrame({
         'col1': [1.0, 2.0, 3.0],
-        'col2': [4.0, 5.0, 6.0]
+        'col2': [4.0, 5.0, 6.0],
+        'col3': [7.0, 8.0, 9.0],
     }),
-    'vector_b': pd.Series([10.0, 20.0, 30.0])
+    'vector_b': pd.Series([10.0, 20.0, 30.0])  # Note: length matches the number of columns in matrix_a
 }
 
-# Initialize evaluator with default settings (arbitrary precision enabled)
+# Initialize the evaluator with default settings
 evaluator = FormulaEvaluator(data)
 
 # Evaluate a formula
@@ -77,7 +84,13 @@ result = evaluator.evaluate_formula('matrix_a * vector_b')
 print(result)
 ```
 
-> **Important Note**: When using `adp_enabled=True` (which is the default), you cannot use scalar values directly in formulas. All variables in your formula must be defined in the `data_dict`. For example, instead of using `a * 2`, you should include a Series with value 2 in your data dictionary and use it in the formula.
+This would produce output similar to:
+```
+     col1   col2   col3
+0   10.0   80.0  210.0
+1   20.0  100.0  240.0
+2   30.0  120.0  270.0
+```
 
 ### Computing Multiple Coefficients
 
@@ -91,21 +104,24 @@ data = {
         'A': [1.0, 2.0],
         'B': [3.0, 4.0]
     }),
-    'adjustment': pd.Series([0.9, 1.1])
+    'adjustment': pd.Series([0.9, 1.1], index=['A', 'B'])  # Series with column names as index
 }
 
 # Define coefficient formulas
 coef_map = pd.DataFrame({
-    'navn': ['adjusted_matrix', 'squared_matrix'],
-    'formel': ['input_matrix * adjustment', 'input_matrix * input_matrix']
+    'coefficient_name': ['adjusted_matrix', 'squared_matrix'],
+    'formula': ['input_matrix * adjustment', 'input_matrix * input_matrix']
 })
 
-# Create calculator with safe settings
+# Create calculator with custom column names and safe settings
 calculator = CoefficientCalculator(
     data,
     coef_map,
-    fill_invalid=True,  # Replace invalid values with zeros
-    verbose=True        # Print detailed information during calculation
+    result_name_col='coefficient_name',  # Specify which column contains result names
+    formula_name_col='formula',          # Specify which column contains formulas
+    adp_enabled=True,                    # Use arbitrary precision
+    fill_invalid=True,                   # Replace invalid values with zeros
+    verbose=True                         # Print detailed information during calculation
 )
 
 # Compute all coefficients
@@ -131,6 +147,14 @@ data = {
 # Safe evaluator that replaces Inf/NaN with zeros
 safe_eval = FormulaEvaluator(data, fill_invalid=True)
 result = safe_eval.evaluate_formula('numerator / denominator')
+print(result)
+```
+
+Output:
+```
+     A    B
+0  1.0  0.0
+1  0.0  2.0
 ```
 
 ### Working with High Precision
@@ -139,26 +163,37 @@ result = safe_eval.evaluate_formula('numerator / denominator')
 import pandas as pd
 from ssb_coefficient_maker import FormulaEvaluator
 
-# Financial data requiring high precision
+# Create data with fractions that produce repeating decimals
 data = {
-    'principal': pd.Series([1000000.00, 2000000.00, 5000000.00]),
-    'rate': pd.Series([0.0325, 0.0310, 0.0295]),
-    'periods': pd.Series([360, 240, 180]),
-    'twelve': pd.Series([12]), # Scalar values must be included as Series
-    'one': pd.Series([1])      # when using arbitrary precision
+    'numerator': pd.Series([1, 2, 1]),
+    'denominator': pd.Series([3, 3, 7])
 }
 
-# Create evaluator with 50 digits of precision
-high_precision = FormulaEvaluator(
-    data,
-    adp_enabled=True,
-    decimal_precision=50
-)
+# Compare precision differences in division operations
+print("Arbitrary precision result (50 digits):")
+high_prec = FormulaEvaluator(data, decimal_precision=50)
+print(high_prec.evaluate_formula('numerator / denominator'))
 
-# Calculate monthly payment using formula
-result = high_precision.evaluate_formula(
-    'principal * (rate/twelve) / (one - (one + rate/twelve)**(-periods))'
-)
+print("\nStandard precision result (float64):")
+std_prec = FormulaEvaluator(data, adp_enabled=False)
+print(std_prec.evaluate_formula('numerator / denominator'))
+```
+
+The actual representation of these values would be:
+```
+# Arbitrary precision result (50 digits):
+# Each value is stored as an mpmath.mpf object with 50 digits of precision
+0    0.33333333333333333333333333333333333333333333333333
+1    0.66666666666666666666666666666666666666666666666667
+2    0.14285714285714285714285714285714285714285714285714
+dtype: object
+
+# Standard precision result (float64):
+# Each value is stored as a 64-bit floating point number with ~15-17 significant digits
+0    0.3333333333333333
+1    0.6666666666666666
+2    0.14285714285714285
+dtype: float64
 ```
 
 Please see the [Reference Guide] for more detailed examples and advanced usage.

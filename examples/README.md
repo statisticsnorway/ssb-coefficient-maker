@@ -33,7 +33,7 @@ data = {
         'col2': [4.0, 5.0, 6.0],
         'col3': [7.0, 8.0, 9.0],
     }),
-    'vector_b': pd.Series([10.0, 20.0, 30.0])
+    'vector_b': pd.Series([10.0, 20.0, 30.0])  # Note: length matches the number of columns in matrix_a
 }
 
 # Initialize the evaluator with default settings
@@ -46,11 +46,18 @@ print(result)
 
 Terminal output:
 ```
-     col1   col2
-0   10.0   40.0
-1   40.0  100.0
-2   90.0  180.0
+# vector_b contains values [10.0, 20.0, 30.0]
+# For matrix_a:
+# Col 'col1': [1.0, 2.0, 3.0]
+# Col 'col2': [4.0, 5.0, 6.0]
+# Col 'col3': [7.0, 8.0, 9.0]
+
+     col1   col2   col3
+0   10.0   80.0  210.0  # Each column multiplied element-wise by vector_b
+1   20.0  100.0  240.0  # col1 * 10, col2 * 20, col3 * 30
+2   30.0  120.0  270.0  # across all rows
 ```
+Proper index and shape alignment is crucial for predictable broadcasting behavior in pandas operations.
 
 ## Configuration Options
 
@@ -198,37 +205,36 @@ Use arbitrary precision when:
 import pandas as pd
 from ssb_coefficient_maker import FormulaEvaluator
 
-# Create data with values that need high precision
+# Create data with fractions that produce repeating decimals
 data = {
-    'very_small': pd.Series([1e-30, 2e-30, 3e-30]),
-    'very_large': pd.Series([1e30, 2e30, 3e30])
+    'numerator': pd.Series([1, 2, 1]),
+    'denominator': pd.Series([3, 3, 7])
 }
 
-# With arbitrary precision (default)
+# Compare precision differences in division operations
+print("Arbitrary precision result (50 digits):")
 high_prec = FormulaEvaluator(data, decimal_precision=50)
-result_high = high_prec.evaluate_formula('very_small * very_large')
-print("High precision result:")
-print(result_high)
+print(high_prec.evaluate_formula('numerator / denominator'))
 
-# With standard numpy precision
+print("\nStandard precision result (float64):")
 std_prec = FormulaEvaluator(data, adp_enabled=False)
-result_std = std_prec.evaluate_formula('very_small * very_large')
-print("\nStandard precision result:")
-print(result_std)
+print(std_prec.evaluate_formula('numerator / denominator'))
 ```
 
-Terminal output:
+The actual representation of these values would be:
 ```
-High precision result:
-0    1.0
-1    4.0
-2    9.0
+# Arbitrary precision result (50 digits):
+# Each value is stored as an mpmath.mpf object with 50 digits of precision
+0    0.33333333333333333333333333333333333333333333333333
+1    0.66666666666666666666666666666666666666666666666667
+2    0.14285714285714285714285714285714285714285714285714
 dtype: object
 
-Standard precision result:
-0    1.0
-1    4.0
-2    9.0
+# Standard precision result (float64):
+# Each value is stored as a 64-bit floating point number with ~15-17 significant digits
+0    0.3333333333333333
+1    0.6666666666666666
+2    0.14285714285714285
 dtype: float64
 ```
 
@@ -237,8 +243,9 @@ dtype: float64
 The `fill_invalid` parameter determines how to handle invalid values (NaN and Inf):
 
 - When `fill_invalid=False` (default):
-  - Warnings are issued for partially invalid results
+  - Warnings are issued for partially invalid results when they occur
   - Errors are thrown when all values are invalid
+  - Detailed diagnostics are shown when `verbose=True`
 
 - When `fill_invalid=True`:
   - Invalid values are replaced with zeros
@@ -291,7 +298,7 @@ dtype: float64
 
 ## CoefficientCalculator Usage
 
-The `CoefficientCalculator` extends `FormulaEvaluator` to calculate multiple coefficients defined in a mapping table:
+The `CoefficientCalculator` extends `FormulaEvaluator` to calculate multiple coefficients defined in a mapping table. This class now supports configurable column names for the coefficient map:
 
 ```python
 import pandas as pd
@@ -307,25 +314,27 @@ data = {
         'A': [5.0, 6.0],
         'B': [7.0, 8.0]
     }),
-    'scalar': pd.Series([10.0])
+    # Create a scalar Series with the same index as the DataFrame columns for proper broadcasting
+    'scalar': pd.Series([10.0, 10.0], index=['A', 'B'])
 }
 
-# Create coefficient mapping table
+# Create coefficient mapping table with custom column names
 coef_map = pd.DataFrame({
-    'navn': ['sum_matrix', 'diff_matrix', 'scaled_matrix', 'invalid_formula', 'missing_var'],
-    'formel': [
+    'result_name': ['sum_matrix', 'diff_matrix', 'scaled_matrix', 'invalid_formula'],
+    'calculation': [
         'matrix1 + matrix2',
         'matrix1 - matrix2',
         'matrix1 * scalar',
-        '',  # Empty formula (will be skipped)
-        'matrix3 * 2'  # Missing variable (will be skipped)
+        ''  # Empty formula (will be skipped)
     ]
 })
 
-# Initialize calculator
+# Initialize calculator with custom column names
 calculator = CoefficientCalculator(
     data,
     coef_map,
+    result_name_col='result_name',  # Custom column for result names
+    formula_name_col='calculation',  # Custom column for formulas
     adp_enabled=True,
     fill_invalid=True,
     verbose=True
@@ -340,7 +349,7 @@ for name, value in results.items():
     print(value)
 ```
 
-Terminal output:
+Terminal output would show something like:
 ```
 FormulaEvaluator initialized with 3 variables
 Settings: precision_mode=mpmath, fill_invalid=True
@@ -364,7 +373,6 @@ Formula evaluation complete. Result shape: (2, 2)
 Successfully computed coefficient: scaled_matrix
 
 Skipping coefficient invalid_formula: No formula provided
-Skipping coefficient missing_var: Missing variables ['matrix3']
 
 Coefficient: sum_matrix
      A     B
@@ -382,85 +390,35 @@ Coefficient: scaled_matrix
 1  20.0  40.0
 ```
 
-## Understanding Broadcasting in Pandas and NumPy
 
-When working with the `FormulaEvaluator` and `CoefficientCalculator`, it's important to understand how operations between different dimensional objects (like DataFrames and Series) are handled through broadcasting. Broadcasting is a powerful feature that allows arrays of different shapes to be combined in arithmetic operations, but its behaviour is different than the rules of linear algebra.
 
-### How Broadcasting Works
+### CoefficientCalculator Workflow
 
-When pandas performs operations between DataFrames and Series, it follows NumPy's broadcasting rules with some pandas-specific behavior:
+The CoefficientCalculator follows this process for each calculation:
 
-1. **Series + DataFrame**: The Series values are broadcast along the DataFrame's index or columns, depending on the Series orientation.
-2. **DataFrame * Series with matching index**: The Series values are broadcast column-wise across the DataFrame.
-3. **DataFrame / Series with matching columns**: By default, values are broadcast row-wise.
+1. Extract the coefficient name and formula from the specified columns
+2. Skip empty or missing formulas with a notification
+3. Parse the formula into a symbolic expression for analysis
+4. Extract all variables used in the formula
+5. Verify all required variables exist in the data dictionary
+6. Skip calculations with missing variables with a notification
+7. Evaluate the formula using the FormulaEvaluator
+8. Store the result in the output dictionary with the coefficient name as key
 
-### Example of Broadcasting Effects
+## Understanding Operations in Pandas and NumPy
 
-```python
-import pandas as pd
-from ssb_coefficient_maker import FormulaEvaluator
+When working with the `FormulaEvaluator` and `CoefficientCalculator`, it's important to understand how operations between different pandas objects (like DataFrames and Series) are handled. Operations follow pandas and NumPy rules, which require compatible shapes and alignable indices.
 
-# Create DataFrame and Series with matching index
-df = pd.DataFrame({
-    'A': [1, 2, 3],
-    'B': [4, 5, 6]
-}, index=[0, 1, 2])
+Under the hood, pandas leverages NumPy's broadcasting mechanism for elementwise operations. Broadcasting allows NumPy to perform operations on arrays of different shapes by implicitly expanding the smaller array to match the shape of the larger array. This is particularly relevant when performing operations between DataFrames and Series.
 
-# Series with the same index as the DataFrame
-series_index = pd.Series([10, 20, 30], index=[0, 1, 2])
+### Key Points About Mathematical Operations
 
-# Series with the same names as the DataFrame columns
-series_columns = pd.Series([10, 20], index=['A', 'B'])
+1. **Index Alignment**: Pandas automatically aligns indices when performing operations between objects.
+2. **Compatible Shapes**: Objects must have compatible shapes for operations to succeed.
+3. **Error Handling**: Operations between incompatible objects will result in errors or invalid values.
 
-evaluator = FormulaEvaluator({
-    'df': df,
-    'series_index': series_index,
-    'series_columns': series_columns
-})
-
-# Column-wise broadcasting (Series values applied to each column)
-result1 = evaluator.evaluate_formula('df * series_index')
-print("Column-wise broadcasting (df * series_index):")
-print(result1)
-
-# Row-wise broadcasting (Series values applied to each row)
-result2 = evaluator.evaluate_formula('df * series_columns')
-print("\nRow-wise broadcasting (df * series_columns):")
-print(result2)
-```
-
-Terminal output:
-```
-Column-wise broadcasting (df * series_index):
-      A     B
-0   10    40
-1   40   100
-2   90   180
-
-Row-wise broadcasting (df * series_columns):
-      A     B
-0   10    80
-1   20   100
-2   30   120
-```
-
-### Potential Issues with Broadcasting
-
-While broadcasting is convenient, it can lead to unexpected results or bugs:
-
-1. **Misaligned Indices**: If the Series and DataFrame indices don't align, you'll get NaN values where there's no match.
-2. **Unexpected Dimensions**: Broadcasting may not always behave as you expect, especially with complex operations.
-3. **Performance**: Some broadcast operations can be less efficient than explicit operations.
-
-### Best Practices
-
-1. **Explicit Alignment**: When working with Series and DataFrames, consider explicitly aligning them before operations.
-2. **Index Checking**: Verify that indices match when doing operations between DataFrames and Series.
-3. **Orientation Control**: Be explicit about the orientation when needed, using methods like `.mul(series, axis=0)` or `.mul(series, axis=1)`.
-
-For deeper details on broadcasting behavior, refer to:
+For more details on how broadcasting works in NumPy, refer to:
 - [NumPy Broadcasting Documentation](https://numpy.org/doc/stable/user/basics.broadcasting.html)
-
 
 ### Handling Misaligned Indices
 

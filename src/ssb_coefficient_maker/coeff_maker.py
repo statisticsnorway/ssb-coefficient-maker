@@ -150,9 +150,6 @@ class _ResultValidator:
 
         Returns:
             Union[pd.DataFrame, pd.Series]: DataFrame or Series of booleans with True for invalid values.
-
-        Raises:
-            TypeError: If the result is not of type pd.DataFrame or pd.Series.
         """
         if isinstance(result, pd.DataFrame):
             if self.adp_enabled:
@@ -182,11 +179,10 @@ class _ResultValidator:
                     data=np.logical_or(result.isna(), np.isinf(result.values)),
                     index=result.index,
                 )
+
         else:
-            raise TypeError(
-                "Expected result to be of type pd.DataFrame or pd.Series, "
-                f"but got {type(result).__name__} instead."
-            )
+            # For other types, return empty mask
+            return pd.Series([False])
 
     def _count_invalid_values(self, result: pd.DataFrame | pd.Series) -> int:
         """Count the number of invalid values (NaN and Inf) in the result.
@@ -261,7 +257,7 @@ class _ResultValidator:
         """
         if self.adp_enabled:
             return self._fill_invalid_dataframe_adp(df, invalid_mask)
-        return df.replace([np.inf, -np.inf, np.nan], 0)
+        return df.replace([np.inf, -np.inf, np.nan, pd.NA], 0)
 
     def _fill_invalid_dataframe_adp(
         self, df: pd.DataFrame, invalid_mask: pd.DataFrame
@@ -453,7 +449,7 @@ class _ResultValidator:
         """Check if the formula mixes Series and DataFrame variables.
 
         Args:
-            formula_str (str): The formula string to check.
+            formula_str (Union[str, sp.Expr]): The formula string to check.
             data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to pandas objects.
 
         Returns:
@@ -567,7 +563,7 @@ class _ResultValidator:
                 )
 
         warning_msg += (
-            "Consider checking your input data and formula for potential issues."
+            "Consider checking your input data and formula for potential issues.\n"
         )
 
         return warning_msg
@@ -634,9 +630,11 @@ class FormulaEvaluator:
             self.data_dict = self._cast_dtypes_to_mpfloat(
                 data_dict.copy(), decimal_precision
             )
+        # Else use np.float64 datatype
         else:
             self.data_dict = {
-                key: val.astype(np.float64) for key, val in data_dict.copy().items()
+                key: val.astype(np.float64, copy=True, errors="raise")
+                for key, val in data_dict.copy().items()
             }
 
         if self.verbose:
@@ -767,12 +765,14 @@ class FormulaEvaluator:
             # Evaluates formula expression and calculates result
             result = pd.eval(formula_str, local_dict=eval_dict)
 
-            # Apply common index to result Series if all Series have the same index
+            # Apply common index to Series if all Series have the same index
             if series_indices and all(
                 index.equals(series_indices[0]) for index in series_indices
             ):
                 common_index = series_indices[0]
-                if isinstance(result, pd.Series):
+                if isinstance(result, pd.DataFrame):
+                    result.index = common_index
+                elif isinstance(result, pd.Series):
                     result.index = common_index
 
         except KeyError as e:
@@ -813,7 +813,7 @@ class FormulaEvaluator:
             print(f"Evaluating formula: {formula_str}")
 
             # Check for division operations
-            if "/" in formula_str:
+            if "/" in str(formula_str):
                 print(
                     "Note: Formula contains division. Invalid values will "
                     + (
@@ -848,48 +848,81 @@ class CoefficientCalculator:
     for parsing and evaluating mathematical expressions, supporting arbitrary decimal
     precision for high-precision numerical operations.
 
+    The CoefficientCalculator is designed for batch processing of multiple formula-based
+    calculations, and is made to make the process of doing arithmetic operations on vectors
+    and matrices as streamlined as possible.It reads formula definitions from a DataFrame and
+    applies them toinput data stored in pandas structures.
+
+    Key features:
+    - Processes multiple coefficient calculations in a single operation
+    - Supports configurable column names in the formula definition table
+    - Handles arbitrary precision calculations for high accuracy requirements
+    - Provides error handling for missing variables and invalid formulas
+    - Can automatically replace invalid calculation results (NaN, Inf, pd.NA) with zeros
+    - Preserves input data integrity by working with a copy of the input dictionary
+
+    Calculation workflow:
+    1. Initialize with input data and a formula definition table
+    2. Validate the formula table has the required columns
+    3. For each formula definition:
+       a. Parse the formula expression
+       b. Check if all required variables exist
+       c. Evaluate the formula using the FormulaEvaluator
+       d. Store the result in the output dictionary
+    4. Return a dictionary of all calculated coefficients
+
     Attributes:
         data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable
             names to pandas objects used in formula evaluation.
-        coefficient_map (pd.DataFrame): DataFrame containing coefficient names and formulas,
-            with columns 'navn' (name) and 'formel' (formula).
+        coefficient_map (pd.DataFrame): DataFrame containing coefficient calculation definitions.
+        result_name_col (str): Name of the column in coefficient_map containing result names.
+        formula_name_col (str): Name of the column in coefficient_map containing formulas.
         fill_invalid (bool): Whether to replace Inf and NaN values with zeros after computation.
         adp_enabled (bool): Whether arbitrary decimal precision is enabled.
         evaluator (FormulaEvaluator): Formula evaluator instance used for parsing and computing.
     """
 
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         data_dict: dict[str, pd.DataFrame | pd.Series],
         coefficient_map: pd.DataFrame,
+        result_name_col: str,
+        formula_name_col: str,
         adp_enabled: bool = True,
         decimal_precision: Annotated[int, Field(gt=0)] = 35,
         fill_invalid: bool = False,
         verbose: bool = False,
     ) -> None:
-        """Initialize the FormulaEvaluator with data and precision settings.
+        """Initialize the CoefficientCalculator with data and precision settings.
 
         Args:
-        data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable names
-            to pandas objects (DataFrames or Series).
-        coefficient_map: DataFrame with coefficient definitions including
-                'navn' (name) and 'formel' (formula) columns. Each row defines
-                a coefficient to compute.
-        adp_enabled (bool): Whether to enable arbitrary decimal precision
-            using mpmath. If True, all numeric values will be converted to mpmath.mpf.
-            Defaults to True.
-        decimal_precision (int): Number of decimal digits for precision when arbitrary precision
-            is enabled. Must be positive. Defaults to 35 (roughly equivalent to 128-bit).
-        fill_invalid (bool): Whether to replace Inf and NaN values with zeros in the computation
-            results. Useful when handling division by zero in diagonal matrices. Defaults to False.
-        verbose (bool): Whether to print verbose information during evaluation. Defaults to False.
-
-        Raises:
-        AttributeError: If adp_enabled is True but decimal_precision is not a positive integer.
-
+            data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary mapping variable names
+                to pandas objects (DataFrames or Series).
+            coefficient_map (pd.DataFrame): DataFrame with coefficient definitions including
+                columns for result names and formula strings as specified by result_name_col
+                and formula_name_col parameters.
+            result_name_col (str): Name of the column in coefficient_map containing result names.
+            formula_name_col (str): Name of the column in coefficient_map containing formulas.
+            adp_enabled (bool): Whether to enable arbitrary decimal precision
+                using mpmath. If True, all numeric values will be converted to mpmath.mpf.
+                Defaults to True.
+            decimal_precision (int): Number of decimal digits for precision when arbitrary precision
+                is enabled. Must be positive. Defaults to 35 (roughly equivalent to 128-bit).
+            fill_invalid (bool): Whether to replace Inf and NaN values with zeros in the computation
+                results. Useful when handling division by zero in diagonal matrices. Defaults to False.
+            verbose (bool): Whether to print verbose information during evaluation. Defaults to False.
         """
+        #  check for mandatory columns
+        self._validate_coefficient_map_headers(
+            coefficient_map, [result_name_col, formula_name_col]
+        )
+
+        # store data
         self.data_dict = data_dict
         self.coefficient_map = coefficient_map
+        self.result_name_col = result_name_col
+        self.formula_name_col = formula_name_col
 
         self.fill_invalid = fill_invalid
         self.adp_enabled = adp_enabled
@@ -902,12 +935,45 @@ class CoefficientCalculator:
             verbose=verbose,
         )
 
+    def _validate_coefficient_map_headers(
+        self, coefficient_map: pd.DataFrame, mandatory_cols: list[str]
+    ) -> None:
+        """Validate that required columns exist in the coefficient map.
+
+        Checks if the mandatory columns specified exist as columns in the coefficient_map DataFrame.
+
+        Args:
+            coefficient_map (pd.DataFrame): The DataFrame to check for mandatory columns.
+            mandatory_cols (list): List of column names that must exist in the coefficient_map.
+
+        Raises:
+            KeyError: If any required columns are missing from the coefficient_map.
+        """
+        missing = set(mandatory_cols).difference(coefficient_map.columns)
+        if missing:
+            raise KeyError(f"{missing} not found among coefficient_map columns.")
+
     def compute_coefficients(self) -> dict[str, Any]:
         """Compute coefficient matrices based on formulas in the coefficient map.
 
         Processes each row in the coefficient_map, evaluating the formula and
         storing the result in a dictionary. Skips entries with missing formulas
         or missing variables, and handles exceptions gracefully.
+
+        The computation process follows these steps for each row in the coefficient map:
+        1. Extract the coefficient name and formula from the specified columns
+        2. Skip empty or missing formulas with a notification
+        3. Parse the formula into a symbolic expression for analysis
+        4. Extract all variables used in the formula
+        5. Verify all required variables exist in the data dictionary
+        6. Skip calculations with missing variables with a notification
+        7. Evaluate the formula using the FormulaEvaluator
+        8. Store the result in the output dictionary with the coefficient name as key
+        9. Provide success feedback for completed calculations
+
+        If invalid values (NaN, Inf) occur during calculation, they are either preserved
+        or replaced with zeros depending on the fill_invalid setting. This is particularly
+        important when dividing by matrices that may contain zeros.
 
         Returns:
             Dict[str, Union[pd.DataFrame, pd.Series]]: Dictionary mapping coefficient
@@ -921,8 +987,8 @@ class CoefficientCalculator:
         result = {}
 
         for _, row in self.coefficient_map.iterrows():
-            name = row["navn"]
-            formula = row["formel"]
+            name = row[self.result_name_col]
+            formula = row[self.formula_name_col]
 
             if pd.isna(formula) or formula.strip() == "":
                 print(f"Skipping coefficient {name}: No formula provided")
