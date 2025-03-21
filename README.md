@@ -76,6 +76,10 @@ data = {
     'vector_b': pd.Series([10.0, 20.0, 30.0])  # Note: length matches the number of columns in matrix_a
 }
 
+data['matrix_a']
+```
+
+```python
 # Initialize the evaluator with default settings
 evaluator = FormulaEvaluator(data)
 
