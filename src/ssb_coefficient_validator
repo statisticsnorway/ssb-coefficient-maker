@@ -1,0 +1,442 @@
+"""
+Author: Benedikt Goodman
+"""
+from __future__ import annotations
+
+import warnings
+from typing import Annotated
+from typing import Any
+
+import mpmath
+import numpy as np
+import pandas as pd
+import sympy as sp
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import validate_call
+
+class _ResultValidator:
+    """Validator for formula evaluation results.
+
+    This class handles detection and validation of invalid values (NaN and Inf)
+    in formula evaluation results, providing appropriate warnings and errors.
+
+    Attributes:
+        fill_invalid (bool): Whether to replace invalid values with zeros.
+        verbose (bool): Whether to print verbose information during validation.
+        adp_enabled (bool): Whether arbitrary decimal precision is enabled.
+    """
+
+    def __init__(
+        self,
+        fill_invalid: bool = False,
+        verbose: bool = False,
+        adp_enabled: bool = False,
+    ) -> None:
+        """Initialize the result validator.
+
+        Args:
+            fill_invalid (bool): Whether to replace invalid values with zeros.
+            verbose (bool): Whether to print verbose information during validation.
+            adp_enabled (bool): Whether arbitrary decimal precision is enabled.
+        """
+        self.fill_invalid = fill_invalid
+        self.verbose = verbose
+        self.adp_enabled = adp_enabled
+
+    def validate(
+        self,
+        result: pd.DataFrame | pd.Series,
+        formula_str: str | sp.Expr,
+        data_dict: dict[str, pd.DataFrame | pd.Series],
+    ) -> tuple[pd.DataFrame | pd.Series, int]:
+        """Validate the result of formula evaluation.
+
+        Detects invalid values (NaN and Inf) in computation results and provides
+        appropriate warnings or errors depending on the severity.
+
+        Args:
+            result (Union[pd.DataFrame, pd.Series]): The result of the formula evaluation.
+            formula_str (str): The formula string used for computation.
+            data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to pandas objects.
+
+        Warns:
+            UserWarning: If some (but not all) values in the result are invalid,
+                suggesting potential issues with the computation and fill_invalid is False.
+
+        Returns:
+            Tuple[Union[pd.DataFrame, pd.Series], int]: A tuple containing the processed result
+                and the number of invalid values found.
+        """
+        # Check invalid status
+        all_invalid, some_invalid, has_nan, has_inf, n_invalid = self._check_invalid_status(result)
+
+        # Log details if verbose
+        self._log_invalid_details(result, all_invalid, some_invalid, has_nan, has_inf)
+
+        # Get invalid count if needed
+        invalid_count = n_invalid if some_invalid else 0
+
+        # If we're filling invalid values, do that and return
+        if self.fill_invalid:
+            if all_invalid or some_invalid:
+                processed_result = self._fill_invalid_values(result)
+                if self.verbose and invalid_count > 0:
+                    print(
+                        f"Replaced {invalid_count} invalid values (NaN/Inf) with zeros"
+                    )
+                return processed_result, invalid_count
+            return result, 0
+
+        # If we have invalid values, continue with validation
+        if all_invalid or some_invalid:
+            # Get variable information
+            variables, series_vars, df_vars, mixture_issue = (
+                self._check_variable_mixture(formula_str, data_dict)
+            )
+
+            if all_invalid:
+                # Handle case where all values are invalid
+                self._handle_all_invalid(
+                    formula_str, variables, series_vars, df_vars, mixture_issue
+                )
+            elif some_invalid:
+                # Create and issue warning for partial invalid values
+                warning_msg = self._create_warning_message(
+                    formula_str,
+                    result,
+                    variables,
+                    series_vars,
+                    df_vars,
+                    mixture_issue,
+                    has_nan,
+                    has_inf,
+                    invalid_count,
+                )
+                warnings.warn(warning_msg, UserWarning, stacklevel=0)
+
+        return result, invalid_count
+
+    def _get_invalid_mask(
+        self, result: pd.DataFrame | pd.Series
+    ) -> pd.DataFrame | pd.Series:
+        """Create a mask identifying where all invalid values (NaN and Inf) are in result.
+
+        Args:
+            result (Union[pd.DataFrame, pd.Series]): DataFrame or Series to check for invalid values.
+
+        Returns:
+            Union[pd.DataFrame, pd.Series]: DataFrame or Series of booleans with True for invalid values.
+        """
+        if isinstance(result, pd.DataFrame):
+            if self.adp_enabled:
+                # For mpmath objects
+                return result.map(
+                    lambda x: getattr(x, "is_nan", False)
+                    or getattr(x, "is_infinite", False)
+                )
+            else:
+                # For numpy floats, returns mask with true where either below are the case.
+                return pd.DataFrame(
+                    data=np.logical_or(result.isna(), np.isinf(result.values)),
+                    index=result.index,
+                    columns=result.columns,
+                )
+
+        elif isinstance(result, pd.Series):
+            if self.adp_enabled:
+                # For mpmath objects
+                return result.apply(
+                    lambda x: getattr(x, "is_nan", False)
+                    or getattr(x, "is_infinite", False)
+                )
+            else:
+                # For numpy floats, returns mask with true where either below are the case.
+                return pd.Series(
+                    data=np.logical_or(result.isna(), np.isinf(result.values)),
+                    index=result.index,
+                )
+
+        else:
+            # For other types, return empty mask
+            return pd.Series([False])
+
+    def _fill_invalid_values(
+        self, result: pd.DataFrame | pd.Series
+    ) -> pd.DataFrame | pd.Series:
+        """Replace Inf and NaN values with zeros.
+
+        Args:
+            result (Union[pd.DataFrame, pd.Series]): DataFrame or Series with potential Inf or NaN values.
+
+        Returns:
+            Union[pd.DataFrame, pd.Series]: DataFrame or Series with Inf and NaN values replaced by zeros.
+        """
+        # Get mask of invalid values
+        invalid_mask = self._get_invalid_mask(result)
+
+        # Check if we have any invalid values
+        if isinstance(invalid_mask, pd.DataFrame):
+            if not invalid_mask.any().any():
+                return result
+        elif isinstance(invalid_mask, pd.Series):
+            if not invalid_mask.any():
+                return result
+        return False
+
+        # Handle replacement based on type and ADP setting
+        if isinstance(result, pd.DataFrame):
+            if self.adp_enabled:
+                result_copy = result.copy()
+                for col in result.columns:
+                    for idx in result.index:
+                        if invalid_mask.loc[idx, col]:
+                            result_copy.loc[idx, col] = mpmath.mpf("0")
+                return result_copy
+            else:
+                return result.replace([np.inf, -np.inf, np.nan, pd.NA], 0)
+        elif isinstance(result, pd.Series):
+            if self.adp_enabled:
+                result_copy = result.copy()
+                for idx in result.index:
+                    if invalid_mask.loc[idx]:
+                        result_copy.loc[idx] = mpmath.mpf("0")
+                return result_copy
+            else:
+                return result.replace([np.inf, -np.inf, np.nan, pd.NA], 0)
+
+        return result
+
+    def _check_invalid_status(
+        self, result: pd.DataFrame | pd.Series
+    ) -> tuple[bool, bool, bool, bool, int]:
+        """Check the status of invalid values in the result.
+
+        Determines whether the result contains all invalid values, some invalid values,
+        or specifically NaN or Inf values.
+
+        Args:
+            result (Union[pd.DataFrame, pd.Series]): DataFrame or Series to check.
+
+        Returns:
+            Tuple[bool, bool, bool, bool, int]: Tuple containing (all_invalid, some_invalid, has_nan, has_inf, n_invalid)
+        """
+        # Get invalid mask
+        invalid_mask = self._get_invalid_mask(result)
+
+        # Check for all vs some invalid values
+        if isinstance(invalid_mask, pd.DataFrame):
+            all_invalid = bool(invalid_mask.all().all())
+            some_invalid = bool(invalid_mask.any().any()) and not all_invalid
+            n_invalid = int(invalid_mask.sum().sum())
+
+        elif isinstance(invalid_mask, pd.Series):
+            all_invalid = bool(invalid_mask.all())
+            some_invalid = bool(invalid_mask.any()) and not all_invalid
+            n_invalid = int(invalid_mask.sum().sum())
+        else:
+            all_invalid = False
+            some_invalid = False
+            n_invalid = 0
+
+        # Check specifically for NaNs and Infs
+        if isinstance(result, pd.DataFrame):
+            # We need to check the attributes of each number in the series or dataframe in the case of using mpf floats
+            if self.adp_enabled:
+                has_nan = bool(
+                    result.map(lambda x: getattr(x, "is_nan", False)).any().any()
+                )
+                has_inf = bool(
+                    result.map(lambda x: getattr(x, "is_infinite", False)).any().any()
+                )
+            # if using numpy we just check if there are any inf or nan values
+            else:
+                has_nan = bool(result.isna().any().any())
+                has_inf = bool(np.isinf(result.values).any())
+
+        # Same operation as above, but for series
+        elif isinstance(result, pd.Series):
+            if self.adp_enabled:
+                has_nan = bool(
+                    result.apply(lambda x: getattr(x, "is_nan", False)).any()
+                )
+                has_inf = bool(
+                    result.apply(lambda x: getattr(x, "is_infinite", False)).any()
+                )
+            else:
+                has_nan = bool(result.isna().any())
+                has_inf = bool(np.isinf(result.values).any())
+        else:
+            has_nan = False
+            has_inf = False
+
+        return all_invalid, some_invalid, has_nan, has_inf, n_invalid
+
+    def _log_invalid_details(
+        self,
+        result: pd.DataFrame | pd.Series,
+        n_invalid: int,
+        verbose: bool,
+        all_invalid: bool,
+        some_invalid: bool,
+        has_nan: bool,
+        has_inf: bool,
+    ) -> None:
+        """Log details about invalid values if verbose mode is enabled.
+
+        Args:
+            result (Union[pd.DataFrame, pd.Series]): The DataFrame or Series being checked.
+            n_invalid (int): Number of invalid values 
+            all_invalid (bool): Whether all values are invalid.
+            some_invalid (bool): Whether some (but not all) values are invalid.
+            has_nan (bool): Whether there are NaN values.
+            has_inf (bool): Whether there are Inf values.
+        """
+        if not self.verbose:
+            return
+
+        if all_invalid:
+            print("WARNING: Result contains all invalid values")
+        elif some_invalid:
+            total = result.size if hasattr(result, "size") else len(result)
+            percentage = (N_INVALID / total) * 100 if total > 0 else 0
+            print(
+                f"WARNING: Result contains {N_INVALID}/{total} ({percentage:.2f}%) invalid values"
+            )
+
+            if has_nan and has_inf:
+                print(" - Result contains both NaN and Inf values")
+            elif has_nan:
+                print(" - Result contains NaN values")
+            elif has_inf:
+                print(" - Result contains Inf values (division by zero)")
+
+        if self.fill_invalid and (all_invalid or some_invalid):
+            print("Invalid values will be replaced with zeros")
+
+    def _check_variable_mixture(
+        self, formula_str: str | sp.Expr, data_dict: dict[str, pd.DataFrame | pd.Series]
+    ) -> tuple[list[str], list[str], list[str], bool]:
+        """Check if the formula mixes Series and DataFrame variables.
+
+        Args:
+            formula_str (Union[str, sp.Expr]): The formula string to check.
+            data_dict (Dict[str, Union[pd.DataFrame, pd.Series]]): Dictionary of variable names to 
+                pandas objects.
+
+        Returns:
+            Tuple[List[str], List[str], List[str], bool]: Tuple containing
+                (variables, series_vars, df_vars, mixture_issue)
+        """
+        # Parse the formula to get variables
+        # Create local dictionary of symbols for sympy
+        symbols = {name: sp.Symbol(name) for name in data_dict.keys()}
+        variables = [str(symbol) for symbol in expr.free_symbols]
+
+        # Check if we mixed Series and DataFrames
+        series_vars = [
+            var for var in variables if isinstance(data_dict[var], pd.Series)
+        ]
+        df_vars = [var for var in variables if isinstance(data_dict[var], pd.DataFrame)]
+
+        mixture_issue = bool(series_vars and df_vars)
+
+        return variables, series_vars, df_vars, mixture_issue
+
+    def _handle_all_invalid(
+        self,
+        formula_str: str | sp.Expr,
+        variables: list[str],
+        series_vars: list[str],
+        df_vars: list[str],
+        mixture_issue: bool,
+    ) -> None:
+        """Handle the case where all values in the result are invalid.
+
+        Args:
+            formula_str (str): The formula string that was evaluated.
+            variables (List[str]): List of variables used in the formula.
+            series_vars (List[str]): List of Series variables used.
+            df_vars (List[str]): List of DataFrame variables used.
+            mixture_issue (bool): Whether there's a mixture of Series and DataFrame variables.
+
+        Raises:
+            ValueError: With an appropriate error message.
+        """
+        if mixture_issue:
+            pass
+            raise ValueError(
+                f"Operation between Series {series_vars} and "
+                f"DataFrames {df_vars} in formula '{formula_str}' resulted in all invalid values. "
+                f"This is likely due to misaligned indices or columns. "
+                f"Consider aligning your data or restructuring your formula."
+            )
+        else:
+            raise ValueError(
+                f"Operation using variables {variables} in formula '{formula_str}' "
+                f"resulted in all invalid values. This suggests a fundamental problem "
+                f"with the computation, such as division by zero, invalid operations, "
+                f"or completely misaligned data."
+            )
+
+    def _create_warning_message(
+        self,
+        formula_str: str | sp.Expr,
+        result: pd.DataFrame | pd.Series,
+        variables: list[str],
+        series_vars: list[str],
+        df_vars: list[str],
+        mixture_issue: bool,
+        has_nan: bool,
+        has_inf: bool,
+        invalid_count: int,
+    ) -> str:
+        """Create an appropriate warning message for partially invalid results.
+
+        Args:
+            formula_str (str): The formula string that was evaluated.
+            result (Union[pd.DataFrame, pd.Series]): The result containing some invalid values.
+            variables (List[str]): List of variables used in the formula.
+            series_vars (List[str]): List of Series variables used.
+            df_vars (List[str]): List of DataFrame variables used.
+            mixture_issue (bool): Whether there's a mixture of Series and DataFrame variables.
+            has_nan (bool): Whether there are NaN values.
+            has_inf (bool): Whether there are Inf values.
+            invalid_count (int): Number of invalid values found.
+
+        Returns:
+            str: The formatted warning message.
+        """
+        # Calculate the percentage of invalid values
+        if isinstance(result, pd.DataFrame):
+            total_cells = result.size
+        else:  # Series
+            total_cells = len(result)
+
+        invalid_percent = (invalid_count / total_cells) * 100 if total_cells > 0 else 0
+
+        warning_msg = (
+            f"Warning: Formula '{formula_str}' using variables {variables} "
+            f"produced a result with {invalid_percent:.1f}% invalid values. "
+        )
+
+        if has_inf:
+            warning_msg += "Some values are infinite due to division by zero. "
+
+        if has_nan:
+            if mixture_issue:
+                warning_msg += (
+                    f"Some values are NaN, possibly due to operations between Series {series_vars} and "
+                    f"DataFrames {df_vars} with partially misaligned indices or columns. "
+                )
+            else:
+                warning_msg += (
+                    "Some values are NaN, which could indicate partial data misalignment, missing values "
+                    "in the original data, or operations that produced undefined results for some elements. "
+                )
+
+        warning_msg += (
+            "Consider checking your input data and formula for potential issues.\n"
+        )
+
+        return warning_msg
